@@ -1,0 +1,29 @@
+{
+  "name": "@michaelborck/winnow-cli",
+  "version": "0.1.0",
+  "description": "Command line interface for Winnow",
+  "type": "module",
+  "license": "MIT",
+  "author": "Michael Borck",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michael-borck/winnow.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "winnow": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"try { require('node:fs').chmodSync('dist/index.js', 0o755) } catch {}\""
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@michaelborck/winnow-core": "0.1.0",
+    "commander": "^15.1.0"
+  }
+}

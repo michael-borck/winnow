@@ -1,0 +1,32 @@
+{
+  "name": "winnow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find, verify, and weigh the literature. Locally.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Michael Borck",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michael-borck/winnow.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @michaelborck/winnow-core && npm run build -w @michaelborck/winnow-cli",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run build",
+    "dev": "npm run build -w @michaelborck/winnow-core && tsx packages/cli/src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

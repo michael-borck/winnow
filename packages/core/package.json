@@ -1,0 +1,31 @@
+{
+  "name": "@michaelborck/winnow-core",
+  "version": "0.1.0",
+  "description": "Verification, retrieval, ranking and evidence primitives for Winnow",
+  "type": "module",
+  "license": "MIT",
+  "author": "Michael Borck",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michael-borck/winnow.git",
+    "directory": "packages/core"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@michaelborck/cite-sight-core": "0.13.3"
+  }
+}

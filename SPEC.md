@@ -6,6 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
+**Implementation:** v0.1 scaffold — `init`, `search`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -562,9 +563,9 @@ renders with visible IDs and the failure is reported.
 
 ## 10. Data model
 
-SQLite (via `better-sqlite3`), one database per project. Files (briefs,
-payloads, exports, drafts, optional PDFs) live beside it in the project folder.
-The `SchemaVersion` table records the schema version, with a forward-only
+SQLite (via Node's built-in `node:sqlite`), one database per project. Files
+(briefs, payloads, exports, drafts, optional PDFs) live beside it in the project
+folder. The `SchemaVersion` table records the schema version, with a forward-only
 migration policy: a newer database refuses to open in an older binary.
 
 | Entity | Key fields |
@@ -797,9 +798,11 @@ winnow/
   logic.
 - TypeScript is chosen because the verification, abstract and BibTeX code
   already exists in TS, and one language spans every surface.
-- `citeproc-js` renders citations. `better-sqlite3` is a native module; the
-  desktop build must rebuild it per Electron version. If `node:sqlite` is
-  stable at build time, it is the preferred fallback.
+- `citeproc-js` renders citations. `node:sqlite` is built in; if Electron's
+  bundled Node does not expose it, the desktop package falls back to
+  `better-sqlite3` and rebuilds it per Electron version.
+- Node 24+ is required for the built-in `node:sqlite` used by the CLI and
+  server.
 
 A Python sidecar is explicitly not used in v1. It earns its place only if PDF
 parsing or local embeddings become a requirement, and then it is an isolated
@@ -917,3 +920,4 @@ behaviour changes.
 |---|---|---|
 | v1.0 | 2026-11-11 | Initial specification (`1fe5a81`) |
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
+| v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
