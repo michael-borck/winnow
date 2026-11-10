@@ -1,6 +1,6 @@
 # Winnow Specification Audit
 
-> **Status:** external spec audit, non-normative until accepted.
+> **Status:** external spec audit; recommendations incorporated into SPEC v1.1.
 > **Audited commit:** `1fe5a81`
 > **Dependency checked:** `@michaelborck/cite-sight-core@0.13.3`
 > **Prepared by:** external LLM reviewer

@@ -9,7 +9,8 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** specification stage. Nothing here runs yet. See [SPEC.md](SPEC.md).
+**Status:** specification v1.1. Nothing here runs yet. See [SPEC.md](SPEC.md).
+v1 targets structured narrative and scoping reviews, not systematic reviews.
 
 ## Why another literature tool
 
@@ -20,8 +21,10 @@ between, and refuses to skip it:
   against a registry, every link is probed. A language model never produces a
   reference.
 - **Grounded, not fluent.** The model only transforms text retrieved from real
-  sources. Every sentence in a draft carries a source ID and a quoted span.
-  No source, no sentence.
+  sources. Every evidence sentence carries a source ID and a quoted span, every
+  synthesis carries two or more, every gap claim comes from a corpus query, and
+  framing prose carries no facts. Provenance is enforced; support is flagged
+  for review, never assumed.
 - **Local, not rented.** Your library, notes and drafts live in a SQLite file
   on your machine. A local model is the default. A frontier model is optional,
   bring-your-own-key, and never part of the correctness path.

@@ -12,3 +12,8 @@ consequences.
 | [0004](0004-counter-evidence-mechanisms.md) | Counter-evidence via query inversion, citation chasing and stance labelling |
 | [0005](0005-hypothesis-is-optional.md) | The thesis or question is an optional brief, not a required interview |
 | [0006](0006-sqlite-no-vector-db.md) | SQLite with FTS5; no vector database in v1 |
+| [0007](0007-orthogonal-verification.md) | Orthogonal verification axes and one citability rule |
+| [0008](0008-sentence-taxonomy.md) | Sentence taxonomy and post-generation checks |
+| [0009](0009-review-scope.md) | Structured narrative and scoping reviews in v1 |
+| [0010](0010-merge-rank-select.md) | Cross-provider merge, rank and selection |
+| [0011](0011-replay-and-payloads.md) | Replay, re-execute and provider payload storage |

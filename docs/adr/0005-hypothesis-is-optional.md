@@ -27,10 +27,11 @@ counter: true
 Free-text context.
 ```
 
-`winnow review --brief brief.md` or `winnow review --thesis "..."` runs argument
-mode. Without either, the tool runs Explore or Review in landscape mode.
-Interactive questioning is deferred to the web UI and evaluated after real CLI
-use.
+`winnow argue --thesis "..."` is the explicit form for argument mode.
+`winnow review --brief brief.md` dispatches on the brief's `mode` field
+(`review` by default, or `argue`). Without either, the tool runs Explore or
+Review in landscape mode. Interactive questioning is deferred to the web UI and
+evaluated after real CLI use.
 
 ## Consequences
 

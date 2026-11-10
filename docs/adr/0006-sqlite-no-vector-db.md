@@ -12,9 +12,9 @@ enough to search exactly.
 
 ## Decision
 
-Use one SQLite database per project, via `better-sqlite3`, with FTS5 for local
-text search. Store JSON columns for structured evidence. Do not add embeddings
-or a vector store in v1.
+Use one SQLite database per project, via `better-sqlite3` (or `node:sqlite` if
+it is stable at build time), with FTS5 for local text search. Store JSON columns
+for structured evidence. Do not add embeddings or a vector store in v1.
 
 ## Consequences
 
@@ -25,3 +25,6 @@ or a vector store in v1.
   exact metadata search as the source of truth.
 - Queries remain reproducible because they are stored as text, not reduced to
   vectors.
+- `better-sqlite3` is a native module, so Electron packaging must rebuild it per
+  Electron version. Budget for this in v0.5, or switch to `node:sqlite` if it is
+  stable.

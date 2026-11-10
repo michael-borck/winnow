@@ -17,12 +17,14 @@ miss nuance. Correctness matters more than prose quality here.
 - Never bundle keys, never persist keys in the database, never log them.
 - Keep every model task out of the verification path.
 - Give every model task a deterministic fallback where one exists, and mark the
-  output when the fallback was used.
+  output when the fallback was used. Fallbacks for extraction and outline are
+  degraded, not equivalent.
 
 ## Consequences
 
-- A user with no model still gets Explore, verification and export. They lose
-  screening suggestions, extraction and drafting.
+- A user with no model still gets Explore, verification and export. Screening,
+  extraction and outline fall back to deterministic, degraded modes that are
+  marked in the run report; drafting prose is unavailable.
 - Draft quality varies with the model, but the citation checker enforces the
   same floor: every kept sentence has a real source and a real quote.
 - Frontier-model users get better prose, not better evidence.
