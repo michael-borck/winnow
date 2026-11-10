@@ -14,6 +14,8 @@ The name is the job: separate the grain from the chaff, and show your working.
 v1 targets structured narrative and scoping reviews, not systematic reviews.
 See [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
+**Website:** <https://winnow.borck.education>
+
 ## Quick start
 
 ```bash
@@ -53,7 +55,7 @@ or `--provider crossref` restricts retrieval.
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
-- 24 unit and integration tests across citability, dedupe, ranking, formatting,
+- Unit and integration tests across citability, dedupe, ranking, formatting,
   project lifecycle, database updates and replay.
 
 Not yet: screening, extraction, grounded drafting, argument maps, counter-
@@ -95,6 +97,7 @@ between, and refuses to skip it:
 - [SPEC.md](SPEC.md) — the product and technical specification
 - [docs/adr](docs/adr/README.md) — architecture decision records
 - [docs/reviews](docs/reviews/README.md) — external spec audits and disposition
+- [site](site/README.md) — landing page and custom-domain notes
 - [LICENSE](LICENSE) — MIT
 
 ## Relationship to sibling projects

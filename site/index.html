@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winnow — find, verify, and weigh the literature. Locally.</title>
+<meta name="description" content="Winnow is a privacy-first literature search and review tool. It verifies every DOI, ranks what survives, and drafts only from quoted evidence. Local-first, open source, MIT.">
+<link rel="canonical" href="https://winnow.borck.education/">
+<meta property="og:title" content="Winnow — find, verify, and weigh the literature">
+<meta property="og:description" content="Privacy-first literature search and review. Verified DOIs, grounded drafts, counter-evidence with quotes.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://winnow.borck.education/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0f0d'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23d9a441' stroke-width='2'/%3E%3Cpath d='M10 13h12M10 16h12M10 19h12' stroke='%23d9a441' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0f0d;
+    --bg-soft: #111713;
+    --card: #141c17;
+    --line: #26332b;
+    --text: #e9efe8;
+    --muted: #9fb0a3;
+    --gold: #d9a441;
+    --gold-2: #efc674;
+    --sage: #7dbb9a;
+    --sage-2: #9ed9b7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--sage-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(11,15,13,.86); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav { display: flex; align-items: center; gap: 24px; padding: 14px 0; }
+  .brand { font-weight: 700; font-size: 1.1rem; color: var(--text); display: flex; align-items: center; gap: 9px; }
+  .brand:hover { text-decoration: none; }
+  .brand svg { width: 24px; height: 24px; color: var(--gold); }
+  nav .links { margin-left: auto; display: flex; gap: 20px; font-size: .94rem; }
+  nav .links a { color: var(--muted); }
+  nav .links a:hover { color: var(--text); }
+
+  .hero {
+    padding: 104px 0 80px; text-align: center;
+    background:
+      radial-gradient(620px 320px at 50% -60px, rgba(217,164,65,.16), transparent),
+      radial-gradient(520px 280px at 82% 28%, rgba(125,187,154,.10), transparent);
+  }
+  .eyebrow {
+    display: inline-block; color: var(--gold-2); text-transform: uppercase;
+    letter-spacing: .14em; font-size: .76rem; font-weight: 700; margin-bottom: 18px;
+  }
+  .hero h1 { font-size: clamp(2.2rem, 5.6vw, 3.7rem); line-height: 1.12; letter-spacing: -.025em; }
+  .hero h1 .grad {
+    background: linear-gradient(90deg, var(--gold), var(--sage-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lead { max-width: 690px; margin: 22px auto 0; color: var(--muted); font-size: 1.14rem; }
+  .cta { margin-top: 36px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 25px; border-radius: 10px;
+    font-weight: 600; font-size: 1rem; transition: transform .12s, box-shadow .12s, border-color .12s;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--gold), #c4892e); color: #17120a;
+    box-shadow: 0 8px 26px rgba(217,164,65,.24);
+  }
+  .btn-ghost { border: 1px solid var(--line); color: var(--text); background: var(--bg-soft); }
+  .btn-ghost:hover { border-color: var(--sage); }
+  .cta-note { margin-top: 16px; color: var(--muted); font-size: .88rem; }
+
+  .status {
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    background: var(--bg-soft);
+  }
+  .status .wrap {
+    display: flex; gap: 10px 28px; flex-wrap: wrap; justify-content: center;
+    padding-top: 14px; padding-bottom: 14px; color: var(--muted); font-size: .86rem;
+  }
+  .status span { display: inline-flex; align-items: center; gap: 8px; }
+  .status span::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--sage); display: inline-block;
+  }
+
+  section { padding: 74px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(1.6rem, 3.2vw, 2.1rem); letter-spacing: -.015em; margin-bottom: 12px; }
+  .kicker { color: var(--gold-2); text-transform: uppercase; letter-spacing: .12em; font-size: .76rem; font-weight: 700; margin-bottom: 8px; }
+  .sub { color: var(--muted); max-width: 680px; font-size: 1.02rem; }
+  .sub + .sub { margin-top: 12px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; margin-top: 36px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 26px 24px; }
+  .card .mark {
+    display: inline-block; color: var(--gold); font-size: .78rem; font-weight: 700;
+    letter-spacing: .1em; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 1.06rem; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: .95rem; }
+
+  .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 36px; align-items: start; margin-top: 34px; }
+  pre {
+    background: #080c0a; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; overflow-x: auto; font-size: .9rem; line-height: 1.8;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #d8e6dc; }
+  .comment { color: #617569; }
+  .prompt { color: var(--gold-2); }
+
+  .note { color: var(--muted); font-size: .9rem; margin-top: 14px; }
+
+  .table-scroll { overflow-x: auto; margin-top: 30px; }
+  table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+  th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--gold-2); font-weight: 600; white-space: nowrap; }
+  td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+  td { color: var(--muted); }
+  .done { color: var(--sage-2); font-weight: 600; }
+  .next { color: var(--gold-2); font-weight: 600; }
+
+  .callout {
+    margin-top: 30px; border: 1px solid var(--line); border-left: 3px solid var(--gold);
+    border-radius: 0 12px 12px 0; background: var(--bg-soft); padding: 22px 24px;
+  }
+  .callout strong { color: var(--text); }
+  .callout p { color: var(--muted); font-size: .96rem; }
+  .callout p + p { margin-top: 10px; }
+
+  footer { border-top: 1px solid var(--line); padding: 36px 0 52px; color: var(--muted); font-size: .9rem; }
+  footer .wrap { display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+  footer .links { display: flex; gap: 18px; flex-wrap: wrap; }
+
+  @media (max-width: 780px) {
+    nav .links { display: none; }
+    .split { grid-template-columns: 1fr; gap: 24px; }
+    .hero { padding: 76px 0 60px; }
+    section { padding: 58px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#top">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 13h12M10 16h12M10 19h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Winnow
+      </a>
+      <div class="links">
+        <a href="#why">Why Winnow</a>
+        <a href="#works">What works</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="https://github.com/michael-borck/winnow">GitHub</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Privacy-first literature review</div>
+      <h1>Find, verify, and weigh the literature.<br><span class="grad">Locally.</span></h1>
+      <p class="lead">
+        Winnow searches open scholarly indexes, resolves every DOI against a
+        registry, ranks what survives, and can turn the verified set into a
+        review draft where every evidence claim carries a quote. The model
+        writes; it never invents a reference.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/michael-borck/winnow#quick-start">Install the CLI</a>
+        <a class="btn btn-ghost" href="https://github.com/michael-borck/winnow">View on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/michael-borck/winnow/blob/main/SPEC.md">Read the spec</a>
+      </div>
+      <p class="cta-note">v0.1 scaffold · MIT licensed · Node 24+ · no accounts, no telemetry</p>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="wrap">
+      <span>OpenAlex + Crossref</span>
+      <span>DOI resolution via cite-sight-core</span>
+      <span>SQLite on your machine</span>
+      <span>BibTeX + CSL-JSON</span>
+      <span>Unit + integration tests</span>
+    </div>
+  </div>
+
+  <section id="why">
+    <div class="wrap">
+      <div class="kicker">Why Winnow</div>
+      <h2>Retrieval is cheap. Sifting it honestly is not.</h2>
+      <p class="sub">
+        Search tools return lists. Deep-research tools write fluently from
+        whatever they found, and sometimes from what they remember. Winnow is
+        built for the part in between: identity, evidence, and the case against
+        your own thesis.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="mark">01 — VERIFY</div>
+          <h3>Verified, never generated</h3>
+          <p>Five orthogonal axes: identity, match category, integrity notices,
+          link status and check completeness. A DOI is resolved, not guessed. No
+          model participates in deciding whether a paper exists.</p>
+        </div>
+        <div class="card">
+          <div class="mark">02 — GROUND</div>
+          <h3>Provenance, not vibes</h3>
+          <p>Every evidence sentence carries a source and a quoted span. Synthesis
+          needs two or more claims, gap claims come from corpus queries, and
+          framing prose carries no facts. Weak support is flagged, not hidden.</p>
+        </div>
+        <div class="card">
+          <div class="mark">03 — WEIGH</div>
+          <h3>Ranked, not worshipped</h3>
+          <p>Reciprocal rank fusion across providers, deterministic selection, and
+          every candidate recorded with its provider ranks. Citation counts are
+          shown, not treated as a quality score.</p>
+        </div>
+        <div class="card">
+          <div class="mark">04 — ARGUE</div>
+          <h3>Counter-evidence, with quotes</h3>
+          <p>Inverted queries, citation chasing and stance labels (<em>supports,
+          opposes, mixed, unclear</em>) with a quote behind each. A null result is
+          a valid answer, not a failure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="works">
+    <div class="wrap">
+      <div class="kicker">What works now</div>
+      <h2>A real CLI, verified against real indexes.</h2>
+      <div class="split">
+        <div>
+          <p class="sub">
+            The v0.1 scaffold retrieves, deduplicates, verifies and ranks. It
+            stores the raw provider payloads, every verification axis and the
+            ranked set in one SQLite database. Replay checks payload hashes and
+            re-derives the deterministic snapshot.
+          </p>
+          <p class="note">
+            Search saves to the nearest project by default. Use
+            <code>--no-save</code> for an ephemeral run, or
+            <code>--format json|csv|bibtex|csl</code> for exports.
+          </p>
+        </div>
+        <div>
+          <pre><code><span class="comment"># install and link the CLI</span>
+npm install &amp;&amp; npm run build
+npm link ./packages/cli
+
+<span class="comment"># create a project and search</span>
+winnow init phd-review
+<span class="prompt">cd</span> phd-review
+winnow search "retrieval augmented generation" --limit 20
+
+<span class="comment"># verify one DOI, or every DOI in a file</span>
+winnow verify 10.1038/s41586-020-2649-2
+
+<span class="comment"># replay a run from its stored payloads</span>
+winnow replay &lt;run-id&gt;</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="wrap">
+      <div class="kicker">Roadmap</div>
+      <h2>Small steps, each one testable.</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Version</th><th>Scope</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>v0.1</td>
+              <td>CLI: init, search, verify, replay; orthogonal verification, citability, RRF ranking, BibTeX/CSL export</td>
+              <td class="done">Scaffolded</td>
+            </tr>
+            <tr>
+              <td>v0.2</td>
+              <td>Screening and extraction: human decisions, evidence table, stage gates, PRISMA-inspired counts</td>
+              <td class="next">Next</td>
+            </tr>
+            <tr>
+              <td>v0.3</td>
+              <td>Review and Argue: evidence bundle, sentence checks, support triage, counter-evidence, citation rendering</td>
+              <td>Planned</td>
+            </tr>
+            <tr>
+              <td>v0.4</td>
+              <td>Local web UI: browse, triage, read, edit drafts, review queue</td>
+              <td>Planned</td>
+            </tr>
+            <tr>
+              <td>v0.5</td>
+              <td>Desktop shell, installers, first-run local model setup</td>
+              <td>Planned</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="scope">
+    <div class="wrap">
+      <div class="kicker">Scope, stated plainly</div>
+      <h2>Narrative and scoping reviews. Not a systematic-review engine.</h2>
+      <div class="callout">
+        <p><strong>v1 is honest about what a bounded search can support.</strong>
+        A relevance-ranked top-N is not an exhaustive search. Winnow reports
+        PRISMA-inspired flow counts, and says so. Exhaustive retrieval,
+        per-database search strings, full-text eligibility and dual independent
+        screening are deliberately deferred.</p>
+        <p>The design decisions are recorded in
+        <a href="https://github.com/michael-borck/winnow/tree/main/docs/adr">ADR 0001–0011</a>,
+        including the 2026-11-11 specification audit and its disposition.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Winnow — MIT licensed, built by <a href="https://github.com/michael-borck">Michael Borck</a>.</div>
+    <div class="links">
+      <a href="https://github.com/michael-borck/winnow">Source</a>
+      <a href="https://github.com/michael-borck/winnow/blob/main/SPEC.md">Spec</a>
+      <a href="https://github.com/michael-borck/winnow/tree/main/docs/adr">ADRs</a>
+      <a href="https://github.com/michael-borck/winnow/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
