@@ -42,6 +42,7 @@ between, and refuses to skip it:
 
 - [SPEC.md](SPEC.md) — the product and technical specification
 - [docs/adr](docs/adr/README.md) — architecture decision records
+- [docs/reviews](docs/reviews/README.md) — external spec audits and disposition
 - [LICENSE](LICENSE) — MIT
 
 ## Relationship to sibling projects

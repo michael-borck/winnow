@@ -1,6 +1,7 @@
 # Winnow: Project Specification
 
 **Status:** draft for review
+**Review:** [spec audit, 2026-11-11](docs/reviews/2026-11-11-spec-audit.md) — recommendations pending incorporation into v1.1
 **Date:** 11 November 2026
 **Repo:** `winnow`
 **Binary:** `winnow`
