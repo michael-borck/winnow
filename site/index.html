@@ -194,6 +194,7 @@
       <span>SQLite on your machine</span>
       <span>YAML briefs</span>
       <span>Human screening</span>
+      <span>Evidence extraction</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
     </div>
@@ -252,9 +253,10 @@
             The v0.2 work retrieves, deduplicates, verifies and ranks. Briefs
             add a question, thesis, machine filters and exclusion flags.
             Screening is a human decision: the tool suggests, stores its
-            suggestion separately, and never overwrites your call. Everything
-            lives in one SQLite database, with raw provider payloads kept for
-            replay.
+            suggestion separately, and never overwrites your call. Extraction
+            starts only from human-confirmed includes, with every value tied to
+            a quote. Everything lives in one SQLite database, with raw provider
+            payloads kept for replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -280,6 +282,10 @@ winnow search --brief briefs/question.md --limit 20
 winnow screen . --suggest
 winnow screen . --interactive
 winnow screen . --format csv --out exports/decisions.csv
+
+<span class="comment"># extract only from human-confirmed includes</span>
+winnow extract . --suggest
+winnow extract . --format csv --out exports/evidence.csv
 
 <span class="comment"># verify one DOI, or every DOI in a file</span>
 winnow verify 10.1038/s41586-020-2649-2

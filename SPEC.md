@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.2 brief parsing and screening — `init`, `brief`, `search`, `screen`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.2 brief parsing, screening and extraction — `init`, `brief`, `search`, `screen`, `extract`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -158,13 +158,18 @@ been shown. Keyword matching uses word boundaries, never substrings.
 
 ### 6.3 Extract
 
-Input: a screened set.
+Input: the current human-confirmed includes from Screen.
 Output: a structured evidence table. Fields are configurable; the default set is
 `population`, `method`, `sample`, `finding`, `limitation`, `quote`.
 
-Every field value is stored as `suggested` and separately as `confirmed`, with
-the confirming reviewer. Where full text is available, a character or page span
-is recorded.
+Only sources whose current screening decision is `include` are extracted.
+Suggestions live in `ExtractionSuggestion` (field, value, quote, location,
+confidence, method, model) and are regenerable. Human confirmations live in
+`Extraction` as append-only rows with a reviewer and timestamp; the latest row
+per source and field is the confirmed value.
+
+Each value carries its source, a quote where available, and a location. A
+suggestion never becomes a confirmed value without a human action.
 
 ### 6.4 Review
 
@@ -599,7 +604,8 @@ migration policy: a newer database refuses to open in an older binary.
 | `SourceText` | source_id, kind (`abstract`/`fulltext`), text, normalised_text, sha256, licence, fetched_at |
 | `Screening` | id, run_id, source_id, decision (`include`/`exclude`/`maybe`), relevance (`core`/`supporting`/`peripheral`), reason_code, reason, tags_json, reviewer, decided_at (append-only) |
 | `ScreeningSuggestion` | id, run_id, source_id, suggested_decision, suggested_relevance, confidence, rationale, method, model, created_at |
-| `Extraction` | id, source_id, field, value, quote, location, model, confidence, suggested, confirmed, confirmed_by |
+| `Extraction` | id, run_id, source_id, field, value, quote, location, reviewer, confirmed_at (append-only; latest per source+field wins) |
+| `ExtractionSuggestion` | id, run_id, source_id, field, value, quote, location, confidence, method, model, created_at |
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
 | `Claim` | id, draft_id, sentence_index, text, sentence_type, source_ids_json, quotes_json, status (`kept`/`kept_marked`/`held`/`dropped`), check_json |
@@ -654,7 +660,15 @@ winnow screen [project]                 Human decisions for a run
   --reviewer <name>                     Reviewer for new decisions
   --format <table|json|csv>             Default: table
   --out <file>
-winnow extract <project> --fields ...   Structured extraction with quotes
+winnow extract [project]                Human-confirmed evidence table
+  --run <run-id>                        Default: latest completed run
+  --fields <list>                       Default: population,method,sample,finding,limitation,quote
+  --suggest                             Store heuristic field suggestions
+  --interactive                         Confirm or edit fields one at a time
+  --decisions <file>                    Import confirmed values from CSV/JSON
+  --reviewer <name>                     Reviewer for confirmed values
+  --format <table|json|csv>             Default: table
+  --out <file>
 winnow review <project>                 Grounded review draft
   --brief <file>                        Question/thesis/scope brief
   --out <file>
@@ -763,6 +777,10 @@ Partial success is never silent.
 - **Screening export** — source ID, DOI, decision, relevance, reason code,
   reason, tags, reviewer, filter flags and tool suggestion. CSV and JSON both
   round-trip; blank decision rows are ignored on import.
+- **Evidence export** — one row per source and field, with confirmed value,
+  quote, location, reviewer, confirmation time and separate suggestion fields.
+  CSV and JSON round-trip confirmed values only; suggestions are never imported
+  as confirmations.
 
 Every draft ends with an evidence appendix mapping each citation to its quote
 and source, so a reader can audit the prose without rerunning the tool.
@@ -912,6 +930,14 @@ planted-fabrication set.
 4. CSV export/import round-trips decisions, and blank decision rows are skipped.
 5. Counts include identified, deduplicated, screened, included, excluded,
    maybe, undecided and filtered out.
+6. Extraction includes only sources whose current screening decision is
+   `include`.
+7. Extraction suggestions are stored separately. Confirmations are append-only,
+   and the latest confirmation per source and field wins.
+8. Evidence CSV/JSON round-trips confirmed values; suggestions are exported in
+   separate columns and are never imported as confirmations.
+9. The evidence summary reports included, extracted, complete and missing
+   counts.
 
 ### 17.3 v0.3
 
@@ -971,4 +997,4 @@ behaviour changes.
 | v1.0 | 2026-11-11 | Initial specification (`1fe5a81`) |
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
-| v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags and CSV/JSON round-trip |
+| v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |

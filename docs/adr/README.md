@@ -18,3 +18,4 @@ consequences.
 | [0010](0010-merge-rank-select.md) | Cross-provider merge, rank and selection |
 | [0011](0011-replay-and-payloads.md) | Replay, re-execute and provider payload storage |
 | [0012](0012-human-screening.md) | Human screening decisions, separate tool suggestions |
+| [0013](0013-extraction-from-confirmed-includes.md) | Extraction only from confirmed includes; suggestions separate |

@@ -20,7 +20,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 2;
+export const LATEST_SCHEMA_VERSION = 3;
 
 export interface RunRow {
   id: string;
@@ -78,6 +78,32 @@ export interface ScreeningSuggestionRow {
   suggested_relevance: ScreeningRelevance | null;
   confidence: number | null;
   rationale: string | null;
+  method: string;
+  model: string | null;
+  created_at: string;
+}
+
+export interface ExtractionRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  field: string;
+  value: string;
+  quote: string | null;
+  location: string | null;
+  reviewer: string;
+  confirmed_at: string;
+}
+
+export interface ExtractionSuggestionRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  field: string;
+  value: string;
+  quote: string | null;
+  location: string | null;
+  confidence: number | null;
   method: string;
   model: string | null;
   created_at: string;
@@ -231,6 +257,41 @@ export function migrate(db: DatabaseSync): void {
       ON screening(source_id);
     CREATE INDEX IF NOT EXISTS idx_screening_suggestions_source
       ON screening_suggestions(source_id);
+
+    CREATE TABLE IF NOT EXISTS extraction (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      value TEXT NOT NULL,
+      quote TEXT,
+      location TEXT,
+      reviewer TEXT NOT NULL,
+      confirmed_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS extraction_suggestions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      value TEXT NOT NULL,
+      quote TEXT,
+      location TEXT,
+      confidence REAL,
+      method TEXT NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_extraction_source_field
+      ON extraction(source_id, field);
+    CREATE INDEX IF NOT EXISTS idx_extraction_suggestions_source_field
+      ON extraction_suggestions(source_id, field);
 
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
@@ -782,4 +843,137 @@ export function getLatestSuggestions(
     )
     .all(runId) as unknown as ScreeningSuggestionRow[];
   return new Map(rows.map((row) => [row.source_id, row]));
+}
+
+export function recordExtractionValue(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    field: string;
+    value: string;
+    quote?: string;
+    location?: string;
+    reviewer: string;
+  },
+): ExtractionRow {
+  const row: ExtractionRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    field: input.field,
+    value: input.value.trim(),
+    quote: input.quote?.trim() || null,
+    location: input.location?.trim() || null,
+    reviewer: input.reviewer,
+    confirmed_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO extraction
+     (id, run_id, source_id, field, value, quote, location, reviewer, confirmed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.field,
+    row.value,
+    row.quote,
+    row.location,
+    row.reviewer,
+    row.confirmed_at,
+  );
+
+  return row;
+}
+
+export function recordExtractionSuggestion(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    field: string;
+    value: string;
+    quote?: string;
+    location?: string;
+    confidence?: number;
+    method: string;
+    model?: string;
+  },
+): ExtractionSuggestionRow {
+  const row: ExtractionSuggestionRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    field: input.field,
+    value: input.value.trim(),
+    quote: input.quote?.trim() || null,
+    location: input.location?.trim() || null,
+    confidence: input.confidence ?? null,
+    method: input.method,
+    model: input.model ?? null,
+    created_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO extraction_suggestions
+     (id, run_id, source_id, field, value, quote, location, confidence, method, model, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.field,
+    row.value,
+    row.quote,
+    row.location,
+    row.confidence,
+    row.method,
+    row.model,
+    row.created_at,
+  );
+
+  return row;
+}
+
+export function getLatestExtractions(
+  db: DatabaseSync,
+  runId: string,
+): Map<string, ExtractionRow> {
+  const rows = db
+    .prepare(
+      `SELECT e.* FROM extraction e
+       JOIN (
+         SELECT source_id, field, MAX(rowid) AS max_rowid
+         FROM extraction
+         GROUP BY source_id, field
+       ) latest ON e.rowid = latest.max_rowid`,
+    )
+    .all() as unknown as ExtractionRow[];
+
+  return new Map(rows.map((row) => [fieldKey(row.source_id, row.field), row]));
+}
+
+export function getLatestExtractionSuggestions(
+  db: DatabaseSync,
+  runId: string,
+): Map<string, ExtractionSuggestionRow> {
+  const rows = db
+    .prepare(
+      `SELECT s.* FROM extraction_suggestions s
+       JOIN (
+         SELECT source_id, field, MAX(rowid) AS max_rowid
+         FROM extraction_suggestions
+         WHERE run_id = ?
+         GROUP BY source_id, field
+       ) latest ON s.rowid = latest.max_rowid`,
+    )
+    .all(runId) as unknown as ExtractionSuggestionRow[];
+
+  return new Map(rows.map((row) => [fieldKey(row.source_id, row.field), row]));
+}
+
+function fieldKey(sourceId: string, field: string): string {
+  return `${sourceId}\u0000${field}`;
 }

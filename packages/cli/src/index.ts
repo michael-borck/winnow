@@ -8,6 +8,8 @@ import {
   BriefError,
   citability,
   createRun,
+  DEFAULT_FIELDS,
+  detectExtractionFormat,
   detectScreeningFormat,
   findProject,
   finishRun,
@@ -16,6 +18,9 @@ import {
   formatBriefSummary,
   formatCsl,
   formatCsv,
+  formatEvidenceCsv,
+  formatEvidenceJson,
+  formatEvidenceTable,
   formatScreeningCsv,
   formatScreeningJson,
   formatScreeningTable,
@@ -23,13 +28,18 @@ import {
   formatTable,
   getLatestRun,
   hashSnapshot,
+  importExtractionValues,
   importScreeningDecisions,
   initProject,
   isCitable,
+  loadExtractionState,
   loadScreeningState,
   openProject,
+  parseExtractionValues,
   parseScreeningDecisions,
   readBrief,
+  recordExtraction,
+  recordExtractionSuggestion,
   recordScreeningDecision,
   recordScreeningSuggestion,
   replayRun,
@@ -38,9 +48,12 @@ import {
   saveRunSources,
   searchLiterature,
   snapshotForRankedSources,
+  suggestExtraction,
   suggestScreening,
   verifyDoi,
+  ExtractionError,
   ScreeningError,
+  type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
   type ScreeningDecision,
@@ -93,6 +106,17 @@ interface ScreenCliOptions {
   decisions?: string;
   suggest?: boolean;
   dropExcluded?: boolean;
+  reviewer?: string;
+  format: string;
+  out?: string;
+}
+
+interface ExtractCliOptions {
+  run?: string;
+  fields?: string;
+  suggest?: boolean;
+  interactive?: boolean;
+  decisions?: string;
   reviewer?: string;
   format: string;
   out?: string;
@@ -418,6 +442,113 @@ program
       process.exitCode = 0;
     } catch (error) {
       if (error instanceof ScreeningError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('extract [project]')
+  .description('Build a human-confirmed evidence table from included sources')
+  .option('--run <run-id>', 'run to extract (default: latest completed)')
+  .option('--fields <list>', 'comma-separated fields', DEFAULT_FIELDS.join(','))
+  .option('--suggest', 'store heuristic extraction suggestions')
+  .option('--interactive', 'review and confirm fields one at a time')
+  .option('--decisions <file>', 'import confirmed values from CSV or JSON')
+  .option('--reviewer <name>', 'reviewer for confirmed values')
+  .option('--format <format>', 'table, json or csv', 'table')
+  .option('--out <file>', 'write output to a file')
+  .action(async (projectArg: string | undefined, options: ExtractCliOptions) => {
+    const format = parseFormat(options.format, ['table', 'json', 'csv']);
+    if (options.decisions && (options.interactive || options.suggest)) {
+      throw new UsageError(
+        '--decisions cannot be combined with --interactive or --suggest',
+      );
+    }
+    if (options.interactive && !process.stdin.isTTY) {
+      throw new UsageError(
+        '--interactive needs a terminal; use --decisions or --format csv',
+      );
+    }
+
+    const fields = parseFields(options.fields);
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let runId = options.run;
+      if (!runId) {
+        const latest = getLatestRun(project.db);
+        if (!latest) {
+          throw new UsageError(
+            'No completed run found. Run `winnow search` first.',
+          );
+        }
+        runId = latest.id;
+      }
+
+      const reviewer = options.reviewer?.trim() || userInfo().username;
+
+      if (options.decisions) {
+        let text: string;
+        try {
+          text = await readFile(options.decisions, 'utf8');
+        } catch (error) {
+          throw new UsageError(
+            `Cannot read extraction file: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        const valueFormat = detectExtractionFormat(options.decisions, text);
+        const values = parseExtractionValues(text, valueFormat);
+        if (!values.length) {
+          throw new UsageError('No extraction values found in the file');
+        }
+        const imported = importExtractionValues(
+          project.db,
+          runId,
+          values,
+          reviewer,
+        );
+        process.stderr.write(`imported ${imported.imported} value(s)\n`);
+        for (const skipped of imported.skipped) {
+          process.stderr.write(`skipped ${skipped.key}: ${skipped.reason}\n`);
+        }
+      }
+
+      if (options.suggest) {
+        const state = loadExtractionState(project.db, runId, fields);
+        let stored = 0;
+        for (const row of state.rows) {
+          for (const draft of suggestExtraction(row.source, fields)) {
+            recordExtractionSuggestion(project.db, {
+              runId,
+              sourceId: row.source.id,
+              ...draft,
+            });
+            stored += 1;
+          }
+        }
+        process.stderr.write(
+          `stored ${stored} suggestion(s) for ${state.rows.length} included source(s)\n`,
+        );
+      }
+
+      if (options.interactive) {
+        const state = loadExtractionState(project.db, runId, fields);
+        await runInteractiveExtraction(project.db, state, runId, reviewer);
+      }
+
+      const summary = loadExtractionState(project.db, runId, fields);
+      const output = renderExtractionOutput(format, summary);
+      await emit(output, options.out);
+
+      if (format === 'csv' || options.out) {
+        process.stderr.write(extractionCountsLine(summary));
+      }
+      process.exitCode = summary.counts.included === 0 ? 3 : 0;
+    } catch (error) {
+      if (error instanceof ExtractionError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();
@@ -817,6 +948,194 @@ function wrapText(value: string, width: number): string[] {
   }
   if (current) lines.push(current);
   return lines;
+}
+
+function parseFields(value: string | undefined): string[] {
+  const fields = (value ?? '')
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean);
+  return fields.length ? [...new Set(fields)] : DEFAULT_FIELDS;
+}
+
+function renderExtractionOutput(
+  format: string,
+  summary: ExtractionSummary,
+): string {
+  if (format === 'json') return formatEvidenceJson(summary);
+  if (format === 'csv') return formatEvidenceCsv(summary);
+  return formatEvidenceTable(summary);
+}
+
+function extractionCountsLine(summary: ExtractionSummary): string {
+  const counts = summary.counts;
+  return (
+    `included ${counts.included}; extracted ${counts.extracted}; ` +
+    `complete ${counts.complete}; missing ${counts.missing}\n`
+  );
+}
+
+type ExtractionDb = Parameters<typeof recordExtraction>[0];
+
+async function runInteractiveExtraction(
+  db: ExtractionDb,
+  summary: ExtractionSummary,
+  runId: string,
+  reviewer: string,
+): Promise<void> {
+  if (!summary.rows.length) {
+    process.stderr.write('No human-confirmed includes to extract.\n');
+    return;
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    let sourceIndex = 0;
+
+    while (sourceIndex < summary.rows.length) {
+      const row = summary.rows[sourceIndex]!;
+      const width = Math.min(process.stdout.columns ?? 88, 100);
+
+      process.stdout.write(
+        `\n[${sourceIndex + 1}/${summary.rows.length}] ${row.source.title} (${row.source.year ?? 'n.d.'})\n`,
+      );
+      if (row.source.doi) process.stdout.write(`doi:${row.source.doi}\n`);
+      if (row.source.abstract) {
+        process.stdout.write(
+          `${wrapText(row.source.abstract.slice(0, 600), width).join('\n')}\n`,
+        );
+      }
+
+      let quit = false;
+
+      for (const field of summary.fields) {
+        const confirmed = row.values[field];
+        const suggestion = row.suggestions[field];
+
+        if (confirmed) {
+          process.stdout.write(
+            `\n${field}: confirmed — ${trimText(confirmed, 220)}\n`,
+          );
+          const answer = (
+            await rl.question('[Enter] keep · e edit · s skip · q quit: ')
+          )
+            .trim()
+            .toLowerCase();
+
+          if (answer === 'q' || answer === 'quit') {
+            quit = true;
+            break;
+          }
+          if (!answer || answer === 's' || answer === 'skip') continue;
+          if (answer === 'e' || answer === 'edit') {
+            const value = (await rl.question(`${field} value: `)).trim();
+            if (!value) continue;
+            const quote =
+              field === 'quote'
+                ? value
+                : (await rl.question('quote (optional): ')).trim();
+            recordExtraction(db, {
+              runId,
+              sourceId: row.source.id,
+              field,
+              value,
+              quote: quote || undefined,
+              reviewer,
+            });
+            process.stderr.write('saved\n');
+          }
+          continue;
+        }
+
+        if (suggestion) {
+          process.stdout.write(
+            `\n${field}: [suggested] ${trimText(suggestion.value, 220)}` +
+              `${suggestion.confidence != null ? ` (${suggestion.confidence.toFixed(2)})` : ''}\n`,
+          );
+          const answer = (
+            await rl.question('[Enter] accept · e edit · s skip · q quit: ')
+          )
+            .trim()
+            .toLowerCase();
+
+          if (answer === 'q' || answer === 'quit') {
+            quit = true;
+            break;
+          }
+          if (answer === 's' || answer === 'skip') continue;
+          if (answer === 'e' || answer === 'edit') {
+            const value = (await rl.question(`${field} value: `)).trim();
+            if (!value) continue;
+            const quote =
+              field === 'quote'
+                ? value
+                : (await rl.question('quote (optional): ')).trim();
+            recordExtraction(db, {
+              runId,
+              sourceId: row.source.id,
+              field,
+              value,
+              quote: quote || undefined,
+              reviewer,
+            });
+          } else {
+            recordExtraction(db, {
+              runId,
+              sourceId: row.source.id,
+              field,
+              value: suggestion.value,
+              quote: suggestion.quote,
+              location: suggestion.location,
+              reviewer,
+            });
+          }
+          process.stderr.write('saved\n');
+          continue;
+        }
+
+        const value = (
+          await rl.question(`\n${field} (Enter to skip, q to quit): `)
+        ).trim();
+        if (value === 'q' || value === 'quit') {
+          quit = true;
+          break;
+        }
+        if (!value) continue;
+        const quote =
+          field === 'quote'
+            ? value
+            : (await rl.question('quote (optional): ')).trim();
+        recordExtraction(db, {
+          runId,
+          sourceId: row.source.id,
+          field,
+          value,
+          quote: quote || undefined,
+          reviewer,
+        });
+        process.stderr.write('saved\n');
+      }
+
+      if (quit) {
+        process.stderr.write('stopped\n');
+        break;
+      }
+      sourceIndex += 1;
+    }
+  } catch (error) {
+    if (isReadlineAbort(error)) {
+      process.stderr.write('stopped\n');
+      return;
+    }
+    throw error;
+  } finally {
+    rl.close();
+  }
+}
+
+function trimText(value: string, length: number): string {
+  const clean = value.trim();
+  return clean.length <= length ? clean : `${clean.slice(0, length - 1)}…`;
 }
 
 function renderVerifyTable(

@@ -40,6 +40,28 @@ export {
 } from './screening/suggest.js';
 
 export {
+  DEFAULT_FIELDS,
+  loadExtractionState,
+  countExtraction,
+  suggestExtraction,
+  recordExtraction,
+  importExtractionValues,
+  parseExtractionValues,
+  detectExtractionFormat,
+  formatEvidenceTable,
+  formatEvidenceJson,
+  formatEvidenceCsv,
+  ExtractionError,
+  type ExtractionSuggestion,
+  type ExtractionSuggestionDraft,
+  type EvidenceRow,
+  type ExtractionCounts,
+  type ExtractionSummary,
+  type ExtractionValueInput,
+  type ExtractionImportResult,
+} from './extraction/extraction.js';
+
+export {
   parseBrief,
   readBrief,
   briefId,
@@ -81,6 +103,10 @@ export {
   recordScreeningDecision,
   recordScreeningSuggestion,
   getLatestSuggestions,
+  recordExtractionValue,
+  recordExtractionSuggestion,
+  getLatestExtractions,
+  getLatestExtractionSuggestions,
   runSourceCounts,
   LATEST_SCHEMA_VERSION,
   type RunRow,
@@ -88,6 +114,8 @@ export {
   type StoredSource,
   type ScreeningRow,
   type ScreeningSuggestionRow,
+  type ExtractionRow,
+  type ExtractionSuggestionRow,
 } from './project/db.js';
 
 export {
