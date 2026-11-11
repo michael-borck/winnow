@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.2 brief parsing, screening and extraction — `init`, `brief`, `search`, `screen`, `extract`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `review`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -173,14 +173,18 @@ suggestion never becomes a confirmed value without a human action.
 
 ### 6.4 Review
 
-Input: a screened and extracted set, plus an optional brief.
-Output: a literature review draft in Markdown, with formatted in-text citations
-and a reference list. Sections follow the brief; the default is background →
-themes → disagreements → gaps → conclusion.
+Input: confirmed includes and confirmed extraction values with quotes, plus an
+optional brief.
+Output: a structured draft and a Markdown review, with in-text citations and a
+reference list. The default sections are overview, evidence by field, synthesis,
+and references. Dropped sentences are listed separately with the check that
+failed.
 
-The draft header states the model, its digest, the text basis ("abstracts only
-for 38 of 42 sources"), and the counts of kept, marked, held and dropped
-sentences.
+The current writer is a deterministic template. It uses only confirmed evidence
+with a quote. Checks 1–5 run before rendering; check 6 (support entailment) is
+reported as not run because no support model is configured. The draft header
+states the writer, the counts of kept and dropped sentences, and the counts of
+included sources, sources with evidence and claims.
 
 ### 6.5 Argue
 
@@ -609,7 +613,7 @@ migration policy: a newer database refuses to open in an older binary.
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
 | `Claim` | id, draft_id, sentence_index, text, sentence_type, source_ids_json, quotes_json, status (`kept`/`kept_marked`/`held`/`dropped`), check_json |
-| `Draft` | id, project_id, mode, markdown, created_at, model, model_digest, prompt_version, brief_id, parent_id, edited_by, basis_json |
+| `Draft` | id, run_id, mode, writer, markdown, structured_json, basis_json, created_at |
 | `ArgumentMap` | id, project_id, brief_id, nodes_json, created_at |
 | `ModelArtifact` | name, digest, quantization, source, verified_at |
 | `Consent` | project_id, provider, granted_by, granted_at, payload_preview_sha256, revoked_at |
@@ -669,11 +673,13 @@ winnow extract [project]                Human-confirmed evidence table
   --reviewer <name>                     Reviewer for confirmed values
   --format <table|json|csv>             Default: table
   --out <file>
-winnow review <project>                 Grounded review draft
+winnow review [project]                 Grounded review draft
+  --run <run-id>                        Default: latest completed run
   --brief <file>                        Question/thesis/scope brief
+  --fields <list>                       Evidence fields to use
+  --format <markdown|json>              Default: markdown
   --out <file>
-  --style <file.csl>                    Default: bundled APA 7
-  --allow-suggested                     Use unconfirmed extractions (marked)
+  --no-save                             Do not store the draft
 winnow argue <project>                  Argument map and draft
   --thesis "..."                        Thesis for this run
   --brief <file>                        Or take the thesis from a brief
@@ -948,6 +954,16 @@ planted-fabrication set.
    threshold in v0.3.
 3. A draft with an empty review queue and zero dropped sentences is rendered
    identically by `winnow replay`.
+4. `winnow review` builds a structured draft from confirmed evidence only; the
+   Markdown contains kept sentences and lists dropped sentences with reasons.
+5. Every kept evidence sentence has a `citable_*` source and a quote that occurs
+   verbatim in the stored source text.
+6. Numbers in evidence and synthesis sentences occur in their quotes; coverage
+   numbers match the recomputed bundle counts.
+7. A synthesis sentence with fewer than two distinct sources, or disagreement
+   language without stance data, is dropped.
+8. The structured draft and Markdown are stored with the run, and check 6 is
+   reported as not run when no support model exists.
 
 ## 18. Open questions
 
@@ -998,3 +1014,4 @@ behaviour changes.
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
+| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; check 6 reported as not run |

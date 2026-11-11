@@ -11,10 +11,11 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v0.2 in progress. The CLI implements `init`, `brief`, `search`,
-`screen`, `extract`, `verify` and `replay`; drafting and the web/desktop
-surfaces are next. v1 targets structured narrative and scoping reviews, not
-systematic reviews. See [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
+**Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
+`screen`, `extract`, `review`, `verify` and `replay`; argument maps,
+counter-evidence, a model writer and the web/desktop surfaces are next. v1
+targets structured narrative and scoping reviews, not systematic reviews. See
+[SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
 
@@ -35,6 +36,7 @@ winnow screen . --suggest
 winnow screen . --interactive
 winnow extract . --suggest
 winnow extract . --format csv --out exports/evidence.csv
+winnow review . --out drafts/review.md
 winnow verify 10.1038/s41586-020-2649-2
 winnow replay <run-id>
 ```
@@ -128,6 +130,22 @@ be changed with `--fields`. The heuristic extractor is deliberately simple and
 explainable; a local model can add suggestions later without changing the
 confirmed-value store.
 
+## Drafting
+
+`winnow review` builds an evidence bundle from confirmed values with quotes,
+then writes a template draft. Only kept sentences reach the Markdown; dropped
+sentences are listed with the check that failed.
+
+```bash
+winnow review . --out drafts/review.md
+winnow review . --format json --out drafts/review.json
+```
+
+Checks 1–5 are deterministic: schema, citable IDs, verbatim quotes, numbers
+present in quotes or recomputed coverage counts, and synthesis shape. Check 6
+(support entailment) is not run without a support model and says so. The
+writer is a template for now; a local model writer comes next.
+
 ## What works now
 
 - `winnow init` — project folder, `.winnow/project.json`, SQLite schema, local
@@ -143,17 +161,20 @@ confirmed-value store.
 - `winnow extract` — human-confirmed evidence rows with quotes, separate tool
   suggestions, configurable fields and CSV/JSON round-trip. Only confirmed
   includes are extracted.
+- `winnow review` — evidence bundle, template draft, deterministic checks 1–5,
+  kept/dropped report, references and an evidence appendix.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
-- Unit and integration tests across briefs, screening, extraction, citability,
-  dedupe, ranking, formatting, project lifecycle, database updates and replay.
+- Unit and integration tests across briefs, screening, extraction, drafting,
+  citability, dedupe, ranking, formatting, project lifecycle, database updates
+  and replay.
 
-Not yet: grounded drafting, argument maps, counter-evidence, link probing during
-search (use `--check-links`), full replay that re-normalises stored payloads
-(current replay verifies payload hashes and re-derives the stored snapshot), the
-local web UI and the desktop shell.
+Not yet: argument maps, counter-evidence, a model writer, citeproc-based
+citation styles, link probing during search (use `--check-links`), full replay
+that re-normalises stored payloads (current replay verifies payload hashes and
+re-derives the stored snapshot), the local web UI and the desktop shell.
 
 ## Why another literature tool
 
@@ -179,7 +200,7 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.2 in progress | Search, screen, verify, replay, batch, scripting |
+| CLI | v0.3 in progress | Search, screen, extract, review, verify, replay, batch |
 | Local web UI | v0.4 | Browse, triage, read, edit |
 | Desktop app | v0.5 | Same UI in a shell, for people who will not open a terminal |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |

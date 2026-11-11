@@ -62,6 +62,25 @@ export {
 } from './extraction/extraction.js';
 
 export {
+  buildEvidenceBundle,
+  generateTemplateDraft,
+  checkDraft,
+  renderDraftMarkdown,
+  formatDraftJson,
+  DraftError,
+  type DraftSentenceType,
+  type DraftStatus,
+  type DraftQuote,
+  type DraftCoverage,
+  type DraftCheckResult,
+  type DraftSentence,
+  type EvidenceClaim,
+  type EvidenceSource,
+  type EvidenceBundle,
+  type StructuredDraft,
+} from './drafting/drafting.js';
+
+export {
   parseBrief,
   readBrief,
   briefId,
@@ -107,6 +126,8 @@ export {
   recordExtractionSuggestion,
   getLatestExtractions,
   getLatestExtractionSuggestions,
+  saveDraft,
+  getDraft,
   runSourceCounts,
   LATEST_SCHEMA_VERSION,
   type RunRow,
@@ -116,6 +137,7 @@ export {
   type ScreeningSuggestionRow,
   type ExtractionRow,
   type ExtractionSuggestionRow,
+  type DraftRow,
 } from './project/db.js';
 
 export {

@@ -19,3 +19,4 @@ consequences.
 | [0011](0011-replay-and-payloads.md) | Replay, re-execute and provider payload storage |
 | [0012](0012-human-screening.md) | Human screening decisions, separate tool suggestions |
 | [0013](0013-extraction-from-confirmed-includes.md) | Extraction only from confirmed includes; suggestions separate |
+| [0014](0014-template-writer-and-checks.md) | Template writer first; deterministic checks before rendering |

@@ -195,6 +195,7 @@
       <span>YAML briefs</span>
       <span>Human screening</span>
       <span>Evidence extraction</span>
+      <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
     </div>
@@ -255,8 +256,10 @@
             Screening is a human decision: the tool suggests, stores its
             suggestion separately, and never overwrites your call. Extraction
             starts only from human-confirmed includes, with every value tied to
-            a quote. Everything lives in one SQLite database, with raw provider
-            payloads kept for replay.
+            a quote. Drafting keeps only sentences that pass deterministic
+            provenance and number checks; dropped sentences stay visible with
+            their reasons. Everything lives in one SQLite database, with raw
+            provider payloads kept for replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -286,6 +289,9 @@ winnow screen . --format csv --out exports/decisions.csv
 <span class="comment"># extract only from human-confirmed includes</span>
 winnow extract . --suggest
 winnow extract . --format csv --out exports/evidence.csv
+
+<span class="comment"># draft from confirmed evidence; checks 1-5 run</span>
+winnow review . --out drafts/review.md
 
 <span class="comment"># verify one DOI, or every DOI in a file</span>
 winnow verify 10.1038/s41586-020-2649-2
@@ -320,7 +326,7 @@ winnow replay &lt;run-id&gt;</code></pre>
             <tr>
               <td>v0.3</td>
               <td>Review and Argue: evidence bundle, sentence checks, support triage, counter-evidence, citation rendering</td>
-              <td>Planned</td>
+              <td class="next">In progress</td>
             </tr>
             <tr>
               <td>v0.4</td>

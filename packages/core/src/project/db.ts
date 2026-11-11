@@ -20,7 +20,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 3;
+export const LATEST_SCHEMA_VERSION = 4;
 
 export interface RunRow {
   id: string;
@@ -106,6 +106,17 @@ export interface ExtractionSuggestionRow {
   confidence: number | null;
   method: string;
   model: string | null;
+  created_at: string;
+}
+
+export interface DraftRow {
+  id: string;
+  run_id: string | null;
+  mode: string;
+  writer: string;
+  markdown: string;
+  structured_json: string;
+  basis_json: string;
   created_at: string;
 }
 
@@ -292,6 +303,18 @@ export function migrate(db: DatabaseSync): void {
       ON extraction(source_id, field);
     CREATE INDEX IF NOT EXISTS idx_extraction_suggestions_source_field
       ON extraction_suggestions(source_id, field);
+
+    CREATE TABLE IF NOT EXISTS drafts (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      mode TEXT NOT NULL,
+      writer TEXT NOT NULL,
+      markdown TEXT NOT NULL,
+      structured_json TEXT NOT NULL,
+      basis_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL
+    );
 
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
@@ -972,6 +995,53 @@ export function getLatestExtractionSuggestions(
     .all(runId) as unknown as ExtractionSuggestionRow[];
 
   return new Map(rows.map((row) => [fieldKey(row.source_id, row.field), row]));
+}
+
+export function saveDraft(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    mode: string;
+    writer: string;
+    markdown: string;
+    structured: unknown;
+    basis: unknown;
+  },
+): DraftRow {
+  const row: DraftRow = {
+    id: `draft-${randomUUID().slice(0, 8)}`,
+    run_id: input.runId ?? null,
+    mode: input.mode,
+    writer: input.writer,
+    markdown: input.markdown,
+    structured_json: JSON.stringify(input.structured),
+    basis_json: JSON.stringify(input.basis),
+    created_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO drafts
+     (id, run_id, mode, writer, markdown, structured_json, basis_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.mode,
+    row.writer,
+    row.markdown,
+    row.structured_json,
+    row.basis_json,
+    row.created_at,
+  );
+
+  return row;
+}
+
+export function getDraft(db: DatabaseSync, id: string): DraftRow | null {
+  const row = db.prepare('SELECT * FROM drafts WHERE id = ?').get(id) as
+    | DraftRow
+    | undefined;
+  return row ?? null;
 }
 
 function fieldKey(sourceId: string, field: string): string {

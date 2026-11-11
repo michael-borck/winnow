@@ -6,6 +6,8 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import {
   BriefError,
+  buildEvidenceBundle,
+  checkDraft,
   citability,
   createRun,
   DEFAULT_FIELDS,
@@ -18,6 +20,7 @@ import {
   formatBriefSummary,
   formatCsl,
   formatCsv,
+  formatDraftJson,
   formatEvidenceCsv,
   formatEvidenceJson,
   formatEvidenceTable,
@@ -26,6 +29,7 @@ import {
   formatScreeningTable,
   formatSearchJson,
   formatTable,
+  generateTemplateDraft,
   getLatestRun,
   hashSnapshot,
   importExtractionValues,
@@ -42,8 +46,10 @@ import {
   recordExtractionSuggestion,
   recordScreeningDecision,
   recordScreeningSuggestion,
+  renderDraftMarkdown,
   replayRun,
   saveBrief,
+  saveDraft,
   savePayload,
   saveRunSources,
   searchLiterature,
@@ -51,6 +57,7 @@ import {
   suggestExtraction,
   suggestScreening,
   verifyDoi,
+  DraftError,
   ExtractionError,
   ScreeningError,
   type ExtractionSummary,
@@ -61,6 +68,7 @@ import {
   type ScreeningRelevance,
   type ScreeningState,
   type ScreeningSummary,
+  type StructuredDraft,
   type VerificationRecord,
   type VerifiedDoi,
 } from '@michaelborck/winnow-core';
@@ -120,6 +128,15 @@ interface ExtractCliOptions {
   reviewer?: string;
   format: string;
   out?: string;
+}
+
+interface ReviewCliOptions {
+  run?: string;
+  brief?: string;
+  fields?: string;
+  format: string;
+  out?: string;
+  save: boolean;
 }
 
 const program = new Command();
@@ -548,6 +565,88 @@ program
       }
       process.exitCode = summary.counts.included === 0 ? 3 : 0;
     } catch (error) {
+      if (error instanceof ExtractionError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('review [project]')
+  .description('Generate a grounded review draft from confirmed evidence')
+  .option('--run <run-id>', 'run to review (default: latest completed)')
+  .option('--brief <file>', 'brief with question, thesis and scope')
+  .option('--fields <list>', 'comma-separated evidence fields', DEFAULT_FIELDS.join(','))
+  .option('--format <format>', 'markdown or json', 'markdown')
+  .option('--out <file>', 'write output to a file')
+  .option('--no-save', 'do not store the draft in the project database')
+  .action(async (projectArg: string | undefined, options: ReviewCliOptions) => {
+    const format = parseFormat(options.format, ['markdown', 'json']);
+    const fields = parseFields(options.fields);
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let brief;
+      if (options.brief) {
+        try {
+          const parsed = await readBrief(options.brief);
+          brief = parsed.brief;
+          for (const warning of parsed.warnings) {
+            process.stderr.write(
+              `winnow: ${warning.field}: ${warning.message}\n`,
+            );
+          }
+          saveBrief(project.db, brief);
+        } catch (error) {
+          if (error instanceof BriefError) throw new UsageError(error.message);
+          throw error;
+        }
+      }
+
+      let runId = options.run;
+      if (!runId) {
+        const latest = getLatestRun(project.db);
+        if (!latest) {
+          throw new UsageError(
+            'No completed run found. Run `winnow search` first.',
+          );
+        }
+        runId = latest.id;
+      }
+
+      const bundle = buildEvidenceBundle(project.db, runId, fields, brief);
+      if (bundle.claims.length === 0) {
+        process.stderr.write(
+          'winnow: no confirmed evidence with quotes. Run `winnow extract` first.\n',
+        );
+        process.exitCode = 3;
+        return;
+      }
+
+      const checked = checkDraft(bundle, generateTemplateDraft(bundle, brief));
+      const markdown = renderDraftMarkdown(bundle, checked);
+
+      let draftId: string | null = null;
+      if (options.save) {
+        const row = saveDraft(project.db, {
+          runId,
+          mode: checked.mode,
+          writer: checked.writer,
+          markdown,
+          structured: checked,
+          basis: checked.basis,
+        });
+        draftId = row.id;
+      }
+
+      const output = format === 'json' ? formatDraftJson(checked) : markdown;
+      await emit(output, options.out);
+      process.stderr.write(reviewSummary(checked, draftId));
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
       throw error;
     } finally {
@@ -1136,6 +1235,16 @@ async function runInteractiveExtraction(
 function trimText(value: string, length: number): string {
   const clean = value.trim();
   return clean.length <= length ? clean : `${clean.slice(0, length - 1)}…`;
+}
+
+function reviewSummary(draft: StructuredDraft, draftId: string | null): string {
+  const kept = draft.sentences.filter((item) => item.status === 'kept').length;
+  const dropped = draft.sentences.filter(
+    (item) => item.status === 'dropped',
+  ).length;
+  return `kept ${kept}, dropped ${dropped}, claims ${draft.basis.claims}${
+    draftId ? `; draft ${draftId}` : ''
+  }\n`;
 }
 
 function renderVerifyTable(
