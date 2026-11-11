@@ -118,7 +118,8 @@ export interface StructuredDraft {
   id: string;
   runId: string;
   mode: 'review' | 'argue';
-  writer: 'template';
+  writer: 'template' | 'model';
+  model?: string;
   title: string;
   sentences: DraftSentence[];
   argumentMap?: ArgumentMap;
@@ -650,8 +651,13 @@ export function renderDraftMarkdown(
 
   const lines: string[] = [`# ${draft.title}`, ''];
 
+  const writer =
+    draft.writer === 'model'
+      ? `Model writer (${draft.model ?? 'unknown'})`
+      : 'Template writer';
+
   lines.push(
-    `*Template writer. ${kept.length} kept, ${dropped.length} dropped. ` +
+    `*${writer}. ${kept.length} kept, ${dropped.length} dropped. ` +
       `${bundle.counts.included} included sources, ${bundle.counts.withEvidence} with confirmed evidence, ` +
       `${bundle.counts.claims} claims. Support check not run.*`,
     '',

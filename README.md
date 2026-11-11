@@ -13,9 +13,10 @@ The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify` and
-`replay`; a model writer, citeproc styles and the web/desktop surfaces are next.
-v1 targets structured narrative and scoping reviews, not systematic reviews. See
-[SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
+`replay`; a template or local-model writer is available, while citeproc styles,
+citation chasing and the web/desktop surfaces are next. v1 targets structured
+narrative and scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md)
+and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
 
@@ -141,13 +142,20 @@ sentences are listed with the check that failed.
 
 ```bash
 winnow review . --out drafts/review.md
+winnow review . --writer model --model qwen3:8b --out drafts/review.md
 winnow review . --format json --out drafts/review.json
 ```
 
 Checks 1–5 are deterministic: schema, citable IDs, verbatim quotes, numbers
 present in quotes or recomputed coverage counts, and synthesis shape. Check 6
-(support entailment) is not run without a support model and says so. The
-writer is a template for now; a local model writer comes next.
+(support entailment) is not run without a support model and says so.
+
+The model writer speaks to any OpenAI-compatible endpoint. The default is a
+local Ollama endpoint at `http://localhost:11434/v1`; use `--base-url` for LM
+Studio, llama.cpp or a remote provider. The model receives only the evidence
+bundle: no full corpus, no other sources. Malformed output is rejected, and
+every returned sentence still runs through checks 1–5. A non-local base URL
+prints a warning because the evidence bundle leaves the machine.
 
 ## Stance and argument
 
@@ -192,12 +200,14 @@ winnow counter . --topic "retrieval augmented generation" \
 - `winnow extract` — human-confirmed evidence rows with quotes, separate tool
   suggestions, configurable fields and CSV/JSON round-trip. Only confirmed
   includes are extracted.
-- `winnow review` — evidence bundle, template draft, deterministic checks 1–5,
-  kept/dropped report, references and an evidence appendix.
+- `winnow review` — evidence bundle, template or local-model writer,
+  deterministic checks 1–5, kept/dropped report, references and an evidence
+  appendix.
 - `winnow stance` — human stance labels relative to a thesis, separate heuristic
   suggestions, and CSV/JSON import-export.
 - `winnow argue` — argument map and draft with supporting, opposing, mixed and
-  unclear sections, plus a checks-filtered synthesis.
+  unclear sections, plus a checks-filtered synthesis. The model writer is
+  available here too.
 - `winnow counter` — a separate critical-terms search run that seeds
   counter-evidence candidates and optional stance suggestions.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
@@ -205,13 +215,13 @@ winnow counter . --topic "retrieval augmented generation" \
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
 - Unit and integration tests across briefs, screening, extraction, stance,
-  drafting, argument maps, citability, dedupe, ranking, formatting, project
-  lifecycle, database updates and replay.
+  drafting, argument maps, model output validation, citability, dedupe, ranking,
+  formatting, project lifecycle, database updates and replay.
 
-Not yet: a model writer, citeproc-based citation styles, link probing during
-search (use `--check-links`), full replay that re-normalises stored payloads
-(current replay verifies payload hashes and re-derives the stored snapshot), the
-local web UI and the desktop shell.
+Not yet: citeproc-based citation styles, citation chasing for counter-evidence,
+link probing during search (use `--check-links`), full replay that re-normalises
+stored payloads (current replay verifies payload hashes and re-derives the
+stored snapshot), the local web UI and the desktop shell.
 
 ## Why another literature tool
 

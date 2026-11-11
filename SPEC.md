@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`; template and local-model writers
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -180,11 +180,13 @@ reference list. The default sections are overview, evidence by field, synthesis,
 and references. Dropped sentences are listed separately with the check that
 failed.
 
-The current writer is a deterministic template. It uses only confirmed evidence
-with a quote. Checks 1–5 run before rendering; check 6 (support entailment) is
-reported as not run because no support model is configured. The draft header
-states the writer, the counts of kept and dropped sentences, and the counts of
-included sources, sources with evidence and claims.
+The writer can be the deterministic template or a local OpenAI-compatible model.
+The model receives only the evidence bundle and writes to a strict JSON shape.
+Malformed output is rejected, not repaired, and every resulting sentence still
+runs through checks 1–5. Checks 1–5 run before rendering; check 6 (support
+entailment) is reported as not run because no support model is configured. The
+draft header states the writer or model name, the counts of kept and dropped
+sentences, and the counts of included sources, sources with evidence and claims.
 
 ### 6.5 Argue
 
@@ -573,11 +575,25 @@ every citation to its quote and source.
 
 ### 9.6 Citation rendering
 
-Drafts use author-year in-text citations and a reference list rendered by
-`citeproc-js` from the project's CSL-JSON. APA 7 is bundled. `--style
-<file.csl>` accepts another style. Internally, claims cite source IDs; the
-renderer maps IDs to formatted citations. If rendering fails, the draft still
-renders with visible IDs and the failure is reported.
+v0.3 uses a simple author-year in-text citation and a reference list built from
+the source metadata. CSL-JSON is exported for round-tripping. `citeproc-js`, a
+bundled APA 7 style and `--style <file.csl>` are the next step; they are not
+yet wired into the draft renderer. If rendering fails, the draft still renders
+with visible IDs and the failure is reported.
+
+### 9.7 Model writer
+
+`--writer model` sends the evidence bundle to an OpenAI-compatible
+`/chat/completions` endpoint. The default base URL is
+`http://localhost:11434/v1` (Ollama); `--base-url` chooses LM Studio, llama.cpp
+or a remote provider. `WINNOW_MODEL_API_KEY` or `OPENAI_API_KEY` supplies a key;
+keys are never written to the database or logs.
+
+The request uses temperature 0 and JSON mode. The model receives the claims,
+source metadata and counts only. It must return a JSON object with a title and
+sentences; each sentence has a type, citations, quotes and optional coverage.
+Malformed output is rejected. A non-local base URL prints a warning because the
+bundle leaves the machine. The template writer remains the default.
 
 ## 10. Data model
 
@@ -607,7 +623,7 @@ migration policy: a newer database refuses to open in an older binary.
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
 | `Claim` | id, draft_id, sentence_index, text, sentence_type, source_ids_json, quotes_json, status (`kept`/`kept_marked`/`held`/`dropped`), check_json |
-| `Draft` | id, run_id, mode, writer, markdown, structured_json, basis_json, created_at |
+| `Draft` | id, run_id, mode, writer, model, markdown, structured_json, basis_json, created_at |
 | `ArgumentMap` | Stored inside `Draft.structured_json` as `argumentMap` for v0.3; a separate table can follow if maps need independent lineage |
 | `ModelArtifact` | name, digest, quantization, source, verified_at |
 | `Consent` | project_id, provider, granted_by, granted_at, payload_preview_sha256, revoked_at |
@@ -682,6 +698,9 @@ winnow review [project]                 Grounded review draft
   --run <run-id>                        Default: latest completed run
   --brief <file>                        Question/thesis/scope brief
   --fields <list>                       Evidence fields to use
+  --writer <template|model>             Default: template
+  --model <name>                        Model for --writer model
+  --base-url <url>                      OpenAI-compatible endpoint
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
@@ -690,6 +709,9 @@ winnow argue [project]                  Argument map and draft
   --thesis "..."                        Thesis for this run
   --brief <file>                        Or take the thesis from a brief
   --fields <list>                       Evidence fields to use
+  --writer <template|model>             Default: template
+  --model <name>                        Model for --writer model
+  --base-url <url>                      OpenAI-compatible endpoint
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
@@ -987,6 +1009,12 @@ planted-fabrication set.
     stances. A one-sided map does not claim a division.
 13. `winnow counter` saves a separate run with critical terms and does not
     silently merge counter-evidence into the main set.
+14. `--writer model` requires `--model`, sends only the evidence bundle, and
+    prints a warning for a non-local base URL.
+15. Malformed model output is rejected. Sentences that parse still run through
+    checks 1–5 before rendering.
+16. The draft stores the writer and model name; the template writer remains the
+    default.
 
 ## 18. Open questions
 
@@ -1037,4 +1065,4 @@ behaviour changes.
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
-| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; plus human-confirmed stance, argument maps, and a separate counter-evidence search run |
+| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; human-confirmed stance, argument maps, a separate counter-evidence search run, and a local-model writer behind the same checks |

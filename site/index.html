@@ -196,6 +196,7 @@
       <span>Human screening</span>
       <span>Evidence extraction</span>
       <span>Stance + argument map</span>
+      <span>Template + model writer</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -261,9 +262,12 @@
             separates supporting, opposing, mixed and unclear evidence. A
             counter-evidence pass runs separately with critical terms. Drafting
             keeps only sentences that pass deterministic provenance and number
-            checks; dropped sentences stay visible with their reasons. Everything
-            lives in one SQLite database, with raw provider payloads kept for
-            replay.
+            checks; dropped sentences stay visible with their reasons. The
+            writer can be a deterministic template or a local OpenAI-compatible
+            model that sees only the evidence bundle; malformed output is
+            rejected and every sentence still runs through the same checks.
+            Everything lives in one SQLite database, with raw provider payloads
+            kept for replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -296,6 +300,7 @@ winnow extract . --format csv --out exports/evidence.csv
 
 <span class="comment"># draft from confirmed evidence; checks 1-5 run</span>
 winnow review . --out drafts/review.md
+winnow review . --writer model --model qwen3:8b --out drafts/review.md
 
 <span class="comment"># stance, argument map, counter-evidence pass</span>
 winnow stance . --thesis "Retrieval improves accuracy." --suggest

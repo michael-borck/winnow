@@ -110,6 +110,20 @@ export {
 } from './stance/stance.js';
 
 export {
+  chatJson,
+  parseJsonContent,
+  ModelError,
+  type ModelClientOptions,
+  type ChatMessage,
+} from './model/client.js';
+export {
+  generateModelDraft,
+  buildModelMessages,
+  parseModelDraft,
+  type ModelWriterOptions,
+} from './model/writer.js';
+
+export {
   parseBrief,
   readBrief,
   briefId,

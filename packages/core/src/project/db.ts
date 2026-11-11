@@ -21,7 +21,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 5;
+export const LATEST_SCHEMA_VERSION = 6;
 
 export interface RunRow {
   id: string;
@@ -115,6 +115,7 @@ export interface DraftRow {
   run_id: string | null;
   mode: string;
   writer: string;
+  model: string | null;
   markdown: string;
   structured_json: string;
   basis_json: string;
@@ -338,6 +339,7 @@ export function migrate(db: DatabaseSync): void {
       run_id TEXT,
       mode TEXT NOT NULL,
       writer TEXT NOT NULL,
+      model TEXT,
       markdown TEXT NOT NULL,
       structured_json TEXT NOT NULL,
       basis_json TEXT NOT NULL,
@@ -405,6 +407,7 @@ export function migrate(db: DatabaseSync): void {
     addColumnIfMissing(db, 'screening', 'relevance', 'TEXT');
     addColumnIfMissing(db, 'screening', 'reason_code', 'TEXT');
     addColumnIfMissing(db, 'screening', 'tags_json', 'TEXT');
+    addColumnIfMissing(db, 'drafts', 'model', 'TEXT');
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
       LATEST_SCHEMA_VERSION,
       new Date().toISOString(),
@@ -1069,6 +1072,7 @@ export function saveDraft(
     runId?: string | null;
     mode: string;
     writer: string;
+    model?: string;
     markdown: string;
     structured: unknown;
     basis: unknown;
@@ -1079,6 +1083,7 @@ export function saveDraft(
     run_id: input.runId ?? null,
     mode: input.mode,
     writer: input.writer,
+    model: input.model ?? null,
     markdown: input.markdown,
     structured_json: JSON.stringify(input.structured),
     basis_json: JSON.stringify(input.basis),
@@ -1087,13 +1092,14 @@ export function saveDraft(
 
   db.prepare(
     `INSERT INTO drafts
-     (id, run_id, mode, writer, markdown, structured_json, basis_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, run_id, mode, writer, model, markdown, structured_json, basis_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     row.id,
     row.run_id,
     row.mode,
     row.writer,
+    row.model,
     row.markdown,
     row.structured_json,
     row.basis_json,

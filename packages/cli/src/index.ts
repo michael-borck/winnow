@@ -36,6 +36,7 @@ import {
   formatStanceTable,
   formatTable,
   generateArgumentDraft,
+  generateModelDraft,
   generateTemplateDraft,
   getLatestRun,
   hashSnapshot,
@@ -72,6 +73,7 @@ import {
   verifyDoi,
   DraftError,
   ExtractionError,
+  ModelError,
   ScreeningError,
   StanceError,
   type ExtractionSummary,
@@ -150,6 +152,9 @@ interface ReviewCliOptions {
   run?: string;
   brief?: string;
   fields?: string;
+  writer?: string;
+  model?: string;
+  baseUrl?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -173,6 +178,9 @@ interface ArgueCliOptions {
   thesis?: string;
   brief?: string;
   fields?: string;
+  writer?: string;
+  model?: string;
+  baseUrl?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -769,11 +777,20 @@ program
   .option('--run <run-id>', 'run to review (default: latest completed)')
   .option('--brief <file>', 'brief with question, thesis and scope')
   .option('--fields <list>', 'comma-separated evidence fields', DEFAULT_FIELDS.join(','))
+  .option('--writer <writer>', 'template or model', 'template')
+  .option('--model <name>', 'model name for --writer model')
+  .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
   .action(async (projectArg: string | undefined, options: ReviewCliOptions) => {
     const format = parseFormat(options.format, ['markdown', 'json']);
+    const writer = parseFormat(options.writer ?? 'template', [
+      'template',
+      'model',
+    ]);
+    const modelOptions =
+      writer === 'model' ? modelWriterOptions(options) : undefined;
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -816,7 +833,13 @@ program
         return;
       }
 
-      const checked = checkDraft(bundle, generateTemplateDraft(bundle, brief));
+      const raw = modelOptions
+        ? await generateModelDraft(bundle, {
+            ...modelOptions,
+            mode: 'review',
+          })
+        : generateTemplateDraft(bundle, brief);
+      const checked = checkDraft(bundle, raw);
       const markdown = renderDraftMarkdown(bundle, checked);
 
       let draftId: string | null = null;
@@ -825,6 +848,7 @@ program
           runId,
           mode: checked.mode,
           writer: checked.writer,
+          model: modelOptions?.model,
           markdown,
           structured: checked,
           basis: checked.basis,
@@ -839,6 +863,7 @@ program
     } catch (error) {
       if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
+      if (error instanceof ModelError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();
@@ -852,12 +877,21 @@ program
   .option('--thesis <text>', 'thesis to argue')
   .option('--brief <file>', 'brief with a thesis')
   .option('--fields <list>', 'comma-separated evidence fields', DEFAULT_FIELDS.join(','))
+  .option('--writer <writer>', 'template or model', 'template')
+  .option('--model <name>', 'model name for --writer model')
+  .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
   .option('--allow-suggested', 'use suggested stances where unconfirmed')
   .action(async (projectArg: string | undefined, options: ArgueCliOptions) => {
     const format = parseFormat(options.format, ['markdown', 'json']);
+    const writer = parseFormat(options.writer ?? 'template', [
+      'template',
+      'model',
+    ]);
+    const modelOptions =
+      writer === 'model' ? modelWriterOptions(options) : undefined;
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -908,10 +942,15 @@ program
       }
 
       const map = buildArgumentMap(bundle, thesis);
-      const checked = checkDraft(
-        bundle,
-        generateArgumentDraft(bundle, thesis, map),
-      );
+      const raw = modelOptions
+        ? await generateModelDraft(bundle, {
+            ...modelOptions,
+            mode: 'argue',
+            thesis,
+          })
+        : generateArgumentDraft(bundle, thesis, map);
+      if (modelOptions) raw.argumentMap = map;
+      const checked = checkDraft(bundle, raw);
       const markdown = renderDraftMarkdown(bundle, checked);
 
       let draftId: string | null = null;
@@ -920,6 +959,7 @@ program
           runId,
           mode: checked.mode,
           writer: checked.writer,
+          model: modelOptions?.model,
           markdown,
           structured: checked,
           basis: checked.basis,
@@ -935,6 +975,7 @@ program
       if (error instanceof StanceError) throw new UsageError(error.message);
       if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
+      if (error instanceof ModelError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();
@@ -1658,6 +1699,53 @@ function reviewSummary(draft: StructuredDraft, draftId: string | null): string {
   return `kept ${kept}, dropped ${dropped}, claims ${draft.basis.claims}${
     draftId ? `; draft ${draftId}` : ''
   }\n`;
+}
+
+function modelWriterOptions(options: {
+  model?: string;
+  baseUrl?: string;
+}): { baseUrl: string; model: string; apiKey?: string } {
+  if (!options.model?.trim()) {
+    throw new UsageError(
+      '--writer model requires --model, e.g. --model qwen3:8b',
+    );
+  }
+  const baseUrl =
+    options.baseUrl?.trim() || 'http://localhost:11434/v1';
+  if (!isLocalBaseUrl(baseUrl)) {
+    process.stderr.write(
+      `winnow: sending the evidence bundle to ${hostOf(baseUrl)}\n`,
+    );
+  }
+  const apiKey =
+    process.env.WINNOW_MODEL_API_KEY ?? process.env.OPENAI_API_KEY;
+  return {
+    baseUrl,
+    model: options.model.trim(),
+    ...(apiKey ? { apiKey } : {}),
+  };
+}
+
+function isLocalBaseUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname;
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hostOf(value: string): string {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
 }
 
 function stanceCountsLine(summary: StanceSummary): string {
