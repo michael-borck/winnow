@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `review`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -188,7 +188,8 @@ included sources, sources with evidence and claims.
 
 ### 6.5 Argue
 
-Input: a thesis plus a screened set.
+Input: a thesis plus included sources with confirmed stance labels and confirmed
+evidence.
 Output: an argument map and a draft that states the thesis, presents the
 strongest evidence on each side, addresses the strongest counterargument, and
 states what would change the conclusion.
@@ -202,11 +203,15 @@ The argument map uses the same four stance labels as the rest of the tool:
 | `mixed` | Conditional, partial or context-dependent evidence |
 | `unclear` | Insufficient or ambiguous evidence |
 
-The map is stored as structured JSON, not only prose. Each node records its
+The map is stored as structured JSON inside the draft. Each node records its
 stance, the claim IDs behind it, the strongest quote, and one sentence on what
 it adds. The map also records the strongest opposing node and the evidence that
 would change the conclusion. If the strongest opposing node is weaker than the
 supporting case, the draft says that rather than manufacturing balance.
+
+Stance labels are human-confirmed. `--allow-suggested` may use tool suggestions
+where a label is missing, and the draft header says so. The current writer is a
+deterministic template; the same checks 1–5 run before rendering.
 
 The thesis is optional. Without it, Winnow runs Explore or Review. With it, the
 tool groups sources by stance and drafts toward the argument. Interactive
@@ -214,28 +219,15 @@ questioning is a later web/TUI feature, not a v1 CLI requirement.
 
 ### 6.6 Counter-evidence
 
-Counter-evidence is a facet available in Explore, Review and Argue, not a
-separate product. It finds material that challenges a framing through three
-grounded mechanisms:
+Counter-evidence is a retrieval pass, not a generation feature. `winnow counter`
+runs a separate search with critical terms (`limitations`, `critique`,
+`"no evidence"`, `"fails to"`, `"replication failure"`, `criticism`) and saves
+it as a new run linked to the original. It does not silently merge results into
+the main set.
 
-1. **Query inversion.** Generate critical phrase queries from the topic or
-   thesis. Phrases are quoted where the provider supports phrase search, because
-   bag-of-words search treats "fails to" and "no evidence" as noise. Use a model
-   when available; a term-expansion heuristic otherwise.
-2. **Citation chasing.** Find papers that cite the target paper through
-   Semantic Scholar, which supplies citation contexts. OpenAlex `cited_by` is a
-   fallback without contexts. Because a highly cited paper can have thousands of
-   citers, sample explicitly: recent citers, highly cited citers, and citers
-   whose context contains critical cues. Record the sampling rule.
-3. **Stance labelling.** Suggest `supports`, `opposes`, `mixed` or `unclear` for
-   each abstract, with a required quote. This is a suggestion, labelled
-   "candidate counter-evidence", and a human confirms it.
-
-Counter-evidence runs through the identical verify-and-enrich path. The
-one-third cap is a **retrieval budget**, not a cap on the reported result: it
-limits how many counter-query results are fetched, while the stance
-distribution is reported uncapped. A null result ("little credible opposition
-found") is a valid output.
+Pass `--thesis` to seed stance suggestions for the counter run, then screen and
+confirm labels as usual. The counter run keeps its own sources, verification,
+screening and stance data. A null result is a valid output.
 
 ## 7. Pipeline
 
@@ -608,13 +600,15 @@ migration policy: a newer database refuses to open in an older binary.
 | `SourceText` | source_id, kind (`abstract`/`fulltext`), text, normalised_text, sha256, licence, fetched_at |
 | `Screening` | id, run_id, source_id, decision (`include`/`exclude`/`maybe`), relevance (`core`/`supporting`/`peripheral`), reason_code, reason, tags_json, reviewer, decided_at (append-only) |
 | `ScreeningSuggestion` | id, run_id, source_id, suggested_decision, suggested_relevance, confidence, rationale, method, model, created_at |
+| `Stance` | id, run_id, source_id, target, target_hash, label (`supports`/`opposes`/`mixed`/`unclear`), quote, rationale, reviewer, confirmed_at (append-only; latest per source+target wins) |
+| `StanceSuggestion` | id, run_id, source_id, target, target_hash, suggested_label, confidence, rationale, quote, method, model, created_at |
 | `Extraction` | id, run_id, source_id, field, value, quote, location, reviewer, confirmed_at (append-only; latest per source+field wins) |
 | `ExtractionSuggestion` | id, run_id, source_id, field, value, quote, location, confidence, method, model, created_at |
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
 | `Claim` | id, draft_id, sentence_index, text, sentence_type, source_ids_json, quotes_json, status (`kept`/`kept_marked`/`held`/`dropped`), check_json |
 | `Draft` | id, run_id, mode, writer, markdown, structured_json, basis_json, created_at |
-| `ArgumentMap` | id, project_id, brief_id, nodes_json, created_at |
+| `ArgumentMap` | Stored inside `Draft.structured_json` as `argumentMap` for v0.3; a separate table can follow if maps need independent lineage |
 | `ModelArtifact` | name, digest, quantization, source, verified_at |
 | `Consent` | project_id, provider, granted_by, granted_at, payload_preview_sha256, revoked_at |
 | `Run` | id, project_id, started_at, finished_at, stages_json, component_health_json, config_json, model_digest |
@@ -673,6 +667,17 @@ winnow extract [project]                Human-confirmed evidence table
   --reviewer <name>                     Reviewer for confirmed values
   --format <table|json|csv>             Default: table
   --out <file>
+winnow stance [project]                 Label stance relative to a thesis
+  --run <run-id>                        Default: latest completed run
+  --thesis "..."                        Thesis the stance is relative to
+  --brief <file>                        Or take the thesis from a brief
+  --all                                 Include unselected sources
+  --suggest                             Store heuristic stance suggestions
+  --interactive                         Label sources one at a time
+  --decisions <file>                    Import labels from CSV/JSON
+  --reviewer <name>                     Reviewer for new labels
+  --format <table|json|csv>             Default: table
+  --out <file>
 winnow review [project]                 Grounded review draft
   --run <run-id>                        Default: latest completed run
   --brief <file>                        Question/thesis/scope brief
@@ -680,14 +685,22 @@ winnow review [project]                 Grounded review draft
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
-winnow argue <project>                  Argument map and draft
+winnow argue [project]                  Argument map and draft
+  --run <run-id>                        Default: latest completed run
   --thesis "..."                        Thesis for this run
   --brief <file>                        Or take the thesis from a brief
+  --fields <list>                       Evidence fields to use
+  --format <markdown|json>              Default: markdown
   --out <file>
-  --allow-suggested                     Use unconfirmed stances (marked)
-winnow counter <project>                Counter-evidence pass
-  --of <doi|source-id>                  Citation chasing from a target paper
-  --topic "..."                         Inverted-query search
+  --no-save                             Do not store the draft
+  --allow-suggested                     Use suggested stances where unconfirmed
+winnow counter [project]                Separate counter-evidence search run
+  --topic "..."                         Default: latest run query
+  --thesis "..."                        Also seed stance suggestions
+  --limit <n>                           Max selected sources
+  --provider <list>                     Providers to query
+  --format <table|json|csv>             Default: table
+  --out <file>
 winnow replay <run-id> [--project <p>]  Re-derive deterministic stages from payloads
 winnow rerun <run-id> --live [--diff] [--project <p>]
                                         Re-execute live and report drift
@@ -964,6 +977,16 @@ planted-fabrication set.
    language without stance data, is dropped.
 8. The structured draft and Markdown are stored with the run, and check 6 is
    reported as not run when no support model exists.
+9. Stance suggestions are stored separately from confirmed labels. Confirmed
+   labels are append-only and keyed by source and thesis.
+10. The argument map reports supporting, opposing, mixed, unclear and
+    unlabelled sources, plus the strongest node on each side.
+11. `winnow argue` uses included sources with confirmed stances by default;
+    `--allow-suggested` may use suggestions and the draft says so.
+12. A divided-synthesis sentence requires two cited sources with differing
+    stances. A one-sided map does not claim a division.
+13. `winnow counter` saves a separate run with critical terms and does not
+    silently merge counter-evidence into the main set.
 
 ## 18. Open questions
 
@@ -1014,4 +1037,4 @@ behaviour changes.
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
-| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; check 6 reported as not run |
+| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; plus human-confirmed stance, argument maps, and a separate counter-evidence search run |

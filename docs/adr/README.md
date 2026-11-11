@@ -20,3 +20,4 @@ consequences.
 | [0012](0012-human-screening.md) | Human screening decisions, separate tool suggestions |
 | [0013](0013-extraction-from-confirmed-includes.md) | Extraction only from confirmed includes; suggestions separate |
 | [0014](0014-template-writer-and-checks.md) | Template writer first; deterministic checks before rendering |
+| [0015](0015-stance-and-counter-evidence.md) | Human stance, derived argument map, separate counter-evidence run |

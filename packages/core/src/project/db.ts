@@ -13,6 +13,7 @@ import type {
   ScreeningDecision,
   ScreeningReasonCode,
   ScreeningRelevance,
+  ScreeningStance,
   VerificationRecord,
 } from '../types.js';
 import { citability } from '../verification/citability.js';
@@ -20,7 +21,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 4;
+export const LATEST_SCHEMA_VERSION = 5;
 
 export interface RunRow {
   id: string;
@@ -117,6 +118,34 @@ export interface DraftRow {
   markdown: string;
   structured_json: string;
   basis_json: string;
+  created_at: string;
+}
+
+export interface StanceRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  target: string;
+  target_hash: string;
+  label: ScreeningStance;
+  quote: string | null;
+  rationale: string | null;
+  reviewer: string;
+  confirmed_at: string;
+}
+
+export interface StanceSuggestionRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  target: string;
+  target_hash: string;
+  suggested_label: ScreeningStance;
+  confidence: number | null;
+  rationale: string | null;
+  quote: string | null;
+  method: string;
+  model: string | null;
   created_at: string;
 }
 
@@ -315,6 +344,43 @@ export function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS stances (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      target TEXT NOT NULL,
+      target_hash TEXT NOT NULL,
+      label TEXT NOT NULL CHECK (label IN ('supports', 'opposes', 'mixed', 'unclear')),
+      quote TEXT,
+      rationale TEXT,
+      reviewer TEXT NOT NULL,
+      confirmed_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS stance_suggestions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      target TEXT NOT NULL,
+      target_hash TEXT NOT NULL,
+      suggested_label TEXT NOT NULL CHECK (suggested_label IN ('supports', 'opposes', 'mixed', 'unclear')),
+      confidence REAL,
+      rationale TEXT,
+      quote TEXT,
+      method TEXT NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_stances_target
+      ON stances(target_hash, source_id);
+    CREATE INDEX IF NOT EXISTS idx_stance_suggestions_target
+      ON stance_suggestions(target_hash, source_id);
 
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
@@ -1042,6 +1108,141 @@ export function getDraft(db: DatabaseSync, id: string): DraftRow | null {
     | DraftRow
     | undefined;
   return row ?? null;
+}
+
+export function recordStance(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    target: string;
+    targetHash: string;
+    label: ScreeningStance;
+    quote?: string;
+    rationale?: string;
+    reviewer: string;
+  },
+): StanceRow {
+  const row: StanceRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    target: input.target,
+    target_hash: input.targetHash,
+    label: input.label,
+    quote: input.quote?.trim() || null,
+    rationale: input.rationale?.trim() || null,
+    reviewer: input.reviewer,
+    confirmed_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO stances
+     (id, run_id, source_id, target, target_hash, label, quote, rationale, reviewer, confirmed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.target,
+    row.target_hash,
+    row.label,
+    row.quote,
+    row.rationale,
+    row.reviewer,
+    row.confirmed_at,
+  );
+
+  return row;
+}
+
+export function recordStanceSuggestion(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    target: string;
+    targetHash: string;
+    suggestedLabel: ScreeningStance;
+    confidence?: number;
+    rationale?: string;
+    quote?: string;
+    method: string;
+    model?: string;
+  },
+): StanceSuggestionRow {
+  const row: StanceSuggestionRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    target: input.target,
+    target_hash: input.targetHash,
+    suggested_label: input.suggestedLabel,
+    confidence: input.confidence ?? null,
+    rationale: input.rationale?.trim() || null,
+    quote: input.quote?.trim() || null,
+    method: input.method,
+    model: input.model ?? null,
+    created_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO stance_suggestions
+     (id, run_id, source_id, target, target_hash, suggested_label, confidence, rationale, quote, method, model, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.target,
+    row.target_hash,
+    row.suggested_label,
+    row.confidence,
+    row.rationale,
+    row.quote,
+    row.method,
+    row.model,
+    row.created_at,
+  );
+
+  return row;
+}
+
+export function getCurrentStances(
+  db: DatabaseSync,
+  targetHash: string,
+): Map<string, StanceRow> {
+  const rows = db
+    .prepare(
+      `SELECT s.* FROM stances s
+       JOIN (
+         SELECT source_id, MAX(rowid) AS max_rowid
+         FROM stances
+         WHERE target_hash = ?
+         GROUP BY source_id
+       ) latest ON s.rowid = latest.max_rowid`,
+    )
+    .all(targetHash) as unknown as StanceRow[];
+  return new Map(rows.map((row) => [row.source_id, row]));
+}
+
+export function getLatestStanceSuggestions(
+  db: DatabaseSync,
+  runId: string,
+  targetHash: string,
+): Map<string, StanceSuggestionRow> {
+  const rows = db
+    .prepare(
+      `SELECT s.* FROM stance_suggestions s
+       JOIN (
+         SELECT source_id, MAX(rowid) AS max_rowid
+         FROM stance_suggestions
+         WHERE run_id = ? AND target_hash = ?
+         GROUP BY source_id
+       ) latest ON s.rowid = latest.max_rowid`,
+    )
+    .all(runId, targetHash) as unknown as StanceSuggestionRow[];
+  return new Map(rows.map((row) => [row.source_id, row]));
 }
 
 function fieldKey(sourceId: string, field: string): string {

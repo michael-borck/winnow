@@ -195,6 +195,7 @@
       <span>YAML briefs</span>
       <span>Human screening</span>
       <span>Evidence extraction</span>
+      <span>Stance + argument map</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -256,10 +257,13 @@
             Screening is a human decision: the tool suggests, stores its
             suggestion separately, and never overwrites your call. Extraction
             starts only from human-confirmed includes, with every value tied to
-            a quote. Drafting keeps only sentences that pass deterministic
-            provenance and number checks; dropped sentences stay visible with
-            their reasons. Everything lives in one SQLite database, with raw
-            provider payloads kept for replay.
+            a quote. Stance labels are human-confirmed, and the argument map
+            separates supporting, opposing, mixed and unclear evidence. A
+            counter-evidence pass runs separately with critical terms. Drafting
+            keeps only sentences that pass deterministic provenance and number
+            checks; dropped sentences stay visible with their reasons. Everything
+            lives in one SQLite database, with raw provider payloads kept for
+            replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -292,6 +296,11 @@ winnow extract . --format csv --out exports/evidence.csv
 
 <span class="comment"># draft from confirmed evidence; checks 1-5 run</span>
 winnow review . --out drafts/review.md
+
+<span class="comment"># stance, argument map, counter-evidence pass</span>
+winnow stance . --thesis "Retrieval improves accuracy." --suggest
+winnow argue . --thesis "Retrieval improves accuracy." --out drafts/argument.md
+winnow counter . --topic "retrieval augmented generation" --thesis "Retrieval improves accuracy."
 
 <span class="comment"># verify one DOI, or every DOI in a file</span>
 winnow verify 10.1038/s41586-020-2649-2

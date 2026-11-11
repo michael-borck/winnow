@@ -6,6 +6,8 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import {
   BriefError,
+  buildArgumentBundle,
+  buildArgumentMap,
   buildEvidenceBundle,
   checkDraft,
   citability,
@@ -13,6 +15,7 @@ import {
   DEFAULT_FIELDS,
   detectExtractionFormat,
   detectScreeningFormat,
+  detectStanceFormat,
   findProject,
   finishRun,
   formatBibtex,
@@ -28,24 +31,33 @@ import {
   formatScreeningJson,
   formatScreeningTable,
   formatSearchJson,
+  formatStanceCsv,
+  formatStanceJson,
+  formatStanceTable,
   formatTable,
+  generateArgumentDraft,
   generateTemplateDraft,
   getLatestRun,
   hashSnapshot,
   importExtractionValues,
   importScreeningDecisions,
+  importStances,
   initProject,
   isCitable,
   loadExtractionState,
   loadScreeningState,
+  loadStanceState,
   openProject,
   parseExtractionValues,
   parseScreeningDecisions,
+  parseStances,
   readBrief,
   recordExtraction,
   recordExtractionSuggestion,
   recordScreeningDecision,
   recordScreeningSuggestion,
+  recordStanceDecision,
+  recordStanceSuggestionFor,
   renderDraftMarkdown,
   replayRun,
   saveBrief,
@@ -56,10 +68,12 @@ import {
   snapshotForRankedSources,
   suggestExtraction,
   suggestScreening,
+  suggestStance,
   verifyDoi,
   DraftError,
   ExtractionError,
   ScreeningError,
+  StanceError,
   type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
@@ -68,6 +82,8 @@ import {
   type ScreeningRelevance,
   type ScreeningState,
   type ScreeningSummary,
+  type StanceState,
+  type StanceSummary,
   type StructuredDraft,
   type VerificationRecord,
   type VerifiedDoi,
@@ -137,6 +153,40 @@ interface ReviewCliOptions {
   format: string;
   out?: string;
   save: boolean;
+}
+
+interface StanceCliOptions {
+  run?: string;
+  thesis?: string;
+  brief?: string;
+  all?: boolean;
+  suggest?: boolean;
+  interactive?: boolean;
+  decisions?: string;
+  reviewer?: string;
+  format: string;
+  out?: string;
+}
+
+interface ArgueCliOptions {
+  run?: string;
+  thesis?: string;
+  brief?: string;
+  fields?: string;
+  format: string;
+  out?: string;
+  save: boolean;
+  allowSuggested?: boolean;
+}
+
+interface CounterCliOptions {
+  topic?: string;
+  thesis?: string;
+  limit: string;
+  provider: string;
+  format: string;
+  out?: string;
+  mailto?: string;
 }
 
 const program = new Command();
@@ -466,6 +516,147 @@ program
   });
 
 program
+  .command('stance [project]')
+  .description('Label source stance relative to a thesis')
+  .option('--run <run-id>', 'run to label (default: latest completed)')
+  .option('--thesis <text>', 'thesis the stance is relative to')
+  .option('--brief <file>', 'brief with a thesis')
+  .option('--all', 'include unselected sources')
+  .option('--suggest', 'store heuristic stance suggestions')
+  .option('--interactive', 'label sources one at a time')
+  .option('--decisions <file>', 'import stance labels from CSV or JSON')
+  .option('--reviewer <name>', 'reviewer for new labels')
+  .option('--format <format>', 'table, json or csv', 'table')
+  .option('--out <file>', 'write output to a file')
+  .action(async (projectArg: string | undefined, options: StanceCliOptions) => {
+    const format = parseFormat(options.format, ['table', 'json', 'csv']);
+    if (options.decisions && (options.interactive || options.suggest)) {
+      throw new UsageError(
+        '--decisions cannot be combined with --interactive or --suggest',
+      );
+    }
+    if (options.interactive && !process.stdin.isTTY) {
+      throw new UsageError(
+        '--interactive needs a terminal; use --decisions or --format csv',
+      );
+    }
+
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let brief;
+      if (options.brief) {
+        try {
+          const parsed = await readBrief(options.brief);
+          brief = parsed.brief;
+          for (const warning of parsed.warnings) {
+            process.stderr.write(
+              `winnow: ${warning.field}: ${warning.message}\n`,
+            );
+          }
+          saveBrief(project.db, brief);
+        } catch (error) {
+          if (error instanceof BriefError) throw new UsageError(error.message);
+          throw error;
+        }
+      }
+
+      const thesis = (options.thesis ?? brief?.thesis ?? '').trim();
+      if (!thesis) {
+        throw new UsageError(
+          'Stance needs a thesis. Pass --thesis or use a brief with a thesis.',
+        );
+      }
+
+      let runId = options.run;
+      if (!runId) {
+        const latest = getLatestRun(project.db);
+        if (!latest) {
+          throw new UsageError(
+            'No completed run found. Run `winnow search` first.',
+          );
+        }
+        runId = latest.id;
+      }
+
+      const reviewer = options.reviewer?.trim() || userInfo().username;
+      const stateOptions = { all: options.all === true };
+
+      if (options.decisions) {
+        let text: string;
+        try {
+          text = await readFile(options.decisions, 'utf8');
+        } catch (error) {
+          throw new UsageError(
+            `Cannot read stance file: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        const stanceFormat = detectStanceFormat(options.decisions, text);
+        const inputs = parseStances(text, stanceFormat);
+        if (!inputs.length) {
+          throw new UsageError('No stance labels found in the file');
+        }
+        const imported = importStances(
+          project.db,
+          runId,
+          thesis,
+          inputs,
+          reviewer,
+        );
+        process.stderr.write(`imported ${imported.imported} label(s)\n`);
+        for (const skipped of imported.skipped) {
+          process.stderr.write(`skipped ${skipped.key}: ${skipped.reason}\n`);
+        }
+      }
+
+      if (options.suggest) {
+        const state = loadStanceState(project.db, runId, thesis, stateOptions);
+        for (const source of state.sources) {
+          recordStanceSuggestionFor(project.db, {
+            runId,
+            sourceId: source.source.id,
+            thesis,
+            draft: suggestStance(source.source, thesis),
+          });
+        }
+        process.stderr.write(
+          `stored ${state.sources.length} stance suggestion(s)\n`,
+        );
+      }
+
+      if (options.interactive) {
+        const state = loadStanceState(project.db, runId, thesis, stateOptions);
+        await runInteractiveStance(
+          project.db,
+          state,
+          runId,
+          thesis,
+          reviewer,
+        );
+      }
+
+      const summary = loadStanceState(project.db, runId, thesis, stateOptions);
+      const output =
+        format === 'json'
+          ? formatStanceJson(summary)
+          : format === 'csv'
+            ? formatStanceCsv(summary)
+            : formatStanceTable(summary);
+      await emit(output, options.out);
+      if (format === 'csv' || options.out) {
+        process.stderr.write(stanceCountsLine(summary));
+      }
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof StanceError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
   .command('extract [project]')
   .description('Build a human-confirmed evidence table from included sources')
   .option('--run <run-id>', 'run to extract (default: latest completed)')
@@ -648,6 +839,228 @@ program
     } catch (error) {
       if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('argue [project]')
+  .description('Build an argument map and draft from stance labels and evidence')
+  .option('--run <run-id>', 'run to argue from (default: latest completed)')
+  .option('--thesis <text>', 'thesis to argue')
+  .option('--brief <file>', 'brief with a thesis')
+  .option('--fields <list>', 'comma-separated evidence fields', DEFAULT_FIELDS.join(','))
+  .option('--format <format>', 'markdown or json', 'markdown')
+  .option('--out <file>', 'write output to a file')
+  .option('--no-save', 'do not store the draft in the project database')
+  .option('--allow-suggested', 'use suggested stances where unconfirmed')
+  .action(async (projectArg: string | undefined, options: ArgueCliOptions) => {
+    const format = parseFormat(options.format, ['markdown', 'json']);
+    const fields = parseFields(options.fields);
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let brief;
+      if (options.brief) {
+        try {
+          const parsed = await readBrief(options.brief);
+          brief = parsed.brief;
+          for (const warning of parsed.warnings) {
+            process.stderr.write(
+              `winnow: ${warning.field}: ${warning.message}\n`,
+            );
+          }
+          saveBrief(project.db, brief);
+        } catch (error) {
+          if (error instanceof BriefError) throw new UsageError(error.message);
+          throw error;
+        }
+      }
+
+      const thesis = (options.thesis ?? brief?.thesis ?? '').trim();
+      if (!thesis) {
+        throw new UsageError(
+          'Argue needs a thesis. Pass --thesis or use a brief with a thesis.',
+        );
+      }
+
+      let runId = options.run;
+      if (!runId) {
+        const latest = getLatestRun(project.db);
+        if (!latest) {
+          throw new UsageError(
+            'No completed run found. Run `winnow search` first.',
+          );
+        }
+        runId = latest.id;
+      }
+
+      const bundle = buildArgumentBundle(project.db, runId, thesis, fields, {
+        allowSuggested: options.allowSuggested === true,
+      });
+      if (!bundle.sources.some((source) => source.stance)) {
+        throw new UsageError(
+          'No stance labels for this thesis. Run `winnow stance --thesis "..." --suggest` first.',
+        );
+      }
+
+      const map = buildArgumentMap(bundle, thesis);
+      const checked = checkDraft(
+        bundle,
+        generateArgumentDraft(bundle, thesis, map),
+      );
+      const markdown = renderDraftMarkdown(bundle, checked);
+
+      let draftId: string | null = null;
+      if (options.save) {
+        const row = saveDraft(project.db, {
+          runId,
+          mode: checked.mode,
+          writer: checked.writer,
+          markdown,
+          structured: checked,
+          basis: checked.basis,
+        });
+        draftId = row.id;
+      }
+
+      const output = format === 'json' ? formatDraftJson(checked) : markdown;
+      await emit(output, options.out);
+      process.stderr.write(reviewSummary(checked, draftId));
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof StanceError) throw new UsageError(error.message);
+      if (error instanceof DraftError) throw new UsageError(error.message);
+      if (error instanceof ExtractionError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('counter [project]')
+  .description('Run a counter-evidence search with critical terms')
+  .option('--topic <text>', 'topic (default: latest run query)')
+  .option('--thesis <text>', 'also store stance suggestions for the new run')
+  .option('--limit <n>', 'maximum selected sources', '20')
+  .option('--provider <list>', 'comma-separated providers', 'openalex,crossref')
+  .option('--format <format>', 'table, json or csv', 'table')
+  .option('--out <file>', 'write output to a file')
+  .option('--mailto <email>', 'polite-pool email for scholarly APIs')
+  .action(async (projectArg: string | undefined, options: CounterCliOptions) => {
+    const format = parseFormat(options.format, ['table', 'json', 'csv']);
+    const limit = parseLimit(options.limit);
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      const latest = getLatestRun(project.db);
+      const topic = options.topic?.trim() || latest?.query;
+      if (!topic) {
+        throw new UsageError(
+          'Counter needs --topic or a completed run to take the topic from.',
+        );
+      }
+
+      const criticalTerms = [
+        'limitations',
+        'critique',
+        '"no evidence"',
+        '"fails to"',
+        '"replication failure"',
+        'criticism',
+      ];
+      const counterQuery = `${topic} ${criticalTerms.join(' OR ')}`;
+      const result = await searchLiterature(counterQuery, {
+        limit,
+        providers: options.provider
+          .split(',')
+          .map((provider) => provider.trim())
+          .filter(Boolean),
+        mailto: options.mailto,
+        checkLinks: false,
+      });
+
+      const snapshot = snapshotForRankedSources(
+        result.runId,
+        result.query,
+        result.sources,
+      );
+      createRun(project.db, {
+        id: result.runId,
+        query: result.query,
+        config: {
+          polarity: 'counter',
+          counterOf: latest?.id ?? null,
+          topic,
+          criticalTerms,
+          limit,
+          providers: options.provider,
+          mailto: options.mailto ?? null,
+        },
+      });
+      for (const payload of result.payloads) {
+        await savePayload(project.db, project.root, result.runId, payload);
+      }
+      saveRunSources(
+        project.db,
+        result.runId,
+        result.query,
+        result.sources,
+      );
+      finishRun(project.db, result.runId, {
+        outputSha256: hashSnapshot(snapshot),
+        stages: {
+          retrieve: result.failures.length ? 'partial' : 'ok',
+          verify: 'ok',
+          rank: 'ok',
+        },
+        componentHealth: {
+          failed: result.failures.length > 0,
+          failures: result.failures,
+        },
+      });
+
+      let suggested = 0;
+      if (options.thesis) {
+        const state = loadStanceState(
+          project.db,
+          result.runId,
+          options.thesis,
+          { all: true },
+        );
+        for (const source of state.sources) {
+          recordStanceSuggestionFor(project.db, {
+            runId: result.runId,
+            sourceId: source.source.id,
+            thesis: options.thesis,
+            draft: suggestStance(source.source, options.thesis),
+          });
+          suggested += 1;
+        }
+      }
+
+      const output =
+        format === 'json'
+          ? formatSearchJson(result)
+          : format === 'csv'
+            ? formatCsv(result.sources)
+            : `${formatTable(result.sources, true)}\n`;
+      await emit(output, options.out);
+
+      process.stderr.write(
+        `counter run ${result.runId} saved with ${result.selectedCount} selected` +
+          `${options.thesis ? `; ${suggested} stance suggestion(s)` : ''}\n`,
+      );
+      if (result.failures.length) process.exitCode = 1;
+      else if (result.selectedCount === 0) process.exitCode = 3;
+      else process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof StanceError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();
@@ -1245,6 +1658,119 @@ function reviewSummary(draft: StructuredDraft, draftId: string | null): string {
   return `kept ${kept}, dropped ${dropped}, claims ${draft.basis.claims}${
     draftId ? `; draft ${draftId}` : ''
   }\n`;
+}
+
+function stanceCountsLine(summary: StanceSummary): string {
+  const counts = summary.counts;
+  return (
+    `supports ${counts.supports}, opposes ${counts.opposes}, ` +
+    `mixed ${counts.mixed}, unclear ${counts.unclear}, ` +
+    `unlabelled ${counts.unlabelled}\n`
+  );
+}
+
+async function runInteractiveStance(
+  db: WinnowDb,
+  summary: StanceSummary,
+  runId: string,
+  thesis: string,
+  reviewer: string,
+): Promise<void> {
+  if (!summary.sources.length) {
+    process.stderr.write('Nothing to label.\n');
+    return;
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    let index = 0;
+    const total = summary.sources.length;
+
+    while (index < total) {
+      const item = summary.sources[index]!;
+      printStanceSource(item, index + 1, total);
+
+      const raw = (
+        await rl.question(
+          'Stance [s]upports [o]pposes [m]ixed [u]nclear [k]skip [q]quit: ',
+        )
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!raw || raw === 'k' || raw === 'skip') {
+        index += 1;
+        continue;
+      }
+      if (raw === 'q' || raw === 'quit') {
+        process.stderr.write('stopped\n');
+        break;
+      }
+
+      const label =
+        raw === 's' || raw === 'supports'
+          ? 'supports'
+          : raw === 'o' || raw === 'opposes'
+            ? 'opposes'
+            : raw === 'm' || raw === 'mixed'
+              ? 'mixed'
+              : raw === 'u' || raw === 'unclear'
+                ? 'unclear'
+                : undefined;
+      if (!label) {
+        process.stderr.write(`winnow: unknown key ${JSON.stringify(raw)}\n`);
+        continue;
+      }
+
+      recordStanceDecision(db, {
+        runId,
+        sourceId: item.source.id,
+        thesis,
+        label,
+        quote: item.suggestion?.quote,
+        rationale: item.suggestion?.rationale,
+        reviewer,
+      });
+      process.stderr.write('saved\n');
+      index += 1;
+    }
+  } catch (error) {
+    if (isReadlineAbort(error)) {
+      process.stderr.write('stopped\n');
+      return;
+    }
+    throw error;
+  } finally {
+    rl.close();
+  }
+}
+
+function printStanceSource(
+  item: StanceState,
+  index: number,
+  total: number,
+): void {
+  const width = Math.min(process.stdout.columns ?? 88, 100);
+  process.stdout.write(
+    `\n[${index}/${total}] ${item.source.title} (${item.source.year ?? 'n.d.'})\n`,
+  );
+  if (item.source.doi) process.stdout.write(`doi:${item.source.doi}\n`);
+  process.stdout.write(
+    `decision: ${item.decision ?? 'undecided'} · current: ${item.stance ?? 'unlabelled'}\n`,
+  );
+  if (item.suggestion) {
+    process.stdout.write(
+      `tool: ${item.suggestion.label}${item.suggestion.confidence != null ? ` (${item.suggestion.confidence.toFixed(2)})` : ''}` +
+        `${item.suggestion.rationale ? ` — ${item.suggestion.rationale}` : ''}\n`,
+    );
+  }
+  if (item.source.abstract) {
+    process.stdout.write(
+      `${wrapText(item.source.abstract.slice(0, 600), width).join('\n')}\n`,
+    );
+  } else {
+    process.stdout.write('No abstract.\n');
+  }
 }
 
 function renderVerifyTable(

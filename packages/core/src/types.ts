@@ -62,6 +62,8 @@ export type Citability =
 
 export type ScreeningDecision = 'include' | 'exclude' | 'maybe';
 
+export type ScreeningStance = 'supports' | 'opposes' | 'mixed' | 'unclear';
+
 export type ScreeningRelevance = 'core' | 'supporting' | 'peripheral';
 
 export type ScreeningReasonCode =

@@ -12,9 +12,9 @@ into a grounded review draft with a citation on every claim.
 The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
-`screen`, `extract`, `review`, `verify` and `replay`; argument maps,
-counter-evidence, a model writer and the web/desktop surfaces are next. v1
-targets structured narrative and scoping reviews, not systematic reviews. See
+`screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify` and
+`replay`; a model writer, citeproc styles and the web/desktop surfaces are next.
+v1 targets structured narrative and scoping reviews, not systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -37,6 +37,9 @@ winnow screen . --interactive
 winnow extract . --suggest
 winnow extract . --format csv --out exports/evidence.csv
 winnow review . --out drafts/review.md
+winnow stance . --thesis "Retrieval improves accuracy." --suggest
+winnow argue . --thesis "Retrieval improves accuracy." --out drafts/argument.md
+winnow counter . --topic "retrieval augmented generation" --thesis "Retrieval improves accuracy."
 winnow verify 10.1038/s41586-020-2649-2
 winnow replay <run-id>
 ```
@@ -146,6 +149,34 @@ present in quotes or recomputed coverage counts, and synthesis shape. Check 6
 (support entailment) is not run without a support model and says so. The
 writer is a template for now; a local model writer comes next.
 
+## Stance and argument
+
+Stance is relative to a thesis and human-confirmed. The tool can suggest a
+label, but the suggestion is stored separately and never overwrites a decision.
+
+```bash
+winnow stance . --thesis "Retrieval improves accuracy." --suggest
+winnow stance . --thesis "Retrieval improves accuracy." --interactive
+winnow stance . --thesis "Retrieval improves accuracy." --format csv --out exports/stances.csv
+winnow argue . --thesis "Retrieval improves accuracy." --out drafts/argument.md
+```
+
+`winnow argue` builds an argument map from included sources with confirmed
+stances: supporting, opposing, mixed and unclear. It generates supporting and
+counter-evidence sections, a divided synthesis when both sides exist, and a
+"What would change the conclusion" section. `--allow-suggested` uses suggestion
+labels where a human label is missing, and says so in the draft.
+
+`winnow counter` runs a separate search with critical terms (`limitations`,
+`critique`, `"no evidence"`, `"fails to"`, `"replication failure"`,
+`criticism`) and saves it as a new run. Pass `--thesis` to seed stance
+suggestions for the counter set, then screen and confirm as usual.
+
+```bash
+winnow counter . --topic "retrieval augmented generation" \
+  --thesis "Retrieval improves accuracy." --limit 20
+```
+
 ## What works now
 
 - `winnow init` — project folder, `.winnow/project.json`, SQLite schema, local
@@ -163,18 +194,24 @@ writer is a template for now; a local model writer comes next.
   includes are extracted.
 - `winnow review` — evidence bundle, template draft, deterministic checks 1–5,
   kept/dropped report, references and an evidence appendix.
+- `winnow stance` — human stance labels relative to a thesis, separate heuristic
+  suggestions, and CSV/JSON import-export.
+- `winnow argue` — argument map and draft with supporting, opposing, mixed and
+  unclear sections, plus a checks-filtered synthesis.
+- `winnow counter` — a separate critical-terms search run that seeds
+  counter-evidence candidates and optional stance suggestions.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
-- Unit and integration tests across briefs, screening, extraction, drafting,
-  citability, dedupe, ranking, formatting, project lifecycle, database updates
-  and replay.
+- Unit and integration tests across briefs, screening, extraction, stance,
+  drafting, argument maps, citability, dedupe, ranking, formatting, project
+  lifecycle, database updates and replay.
 
-Not yet: argument maps, counter-evidence, a model writer, citeproc-based
-citation styles, link probing during search (use `--check-links`), full replay
-that re-normalises stored payloads (current replay verifies payload hashes and
-re-derives the stored snapshot), the local web UI and the desktop shell.
+Not yet: a model writer, citeproc-based citation styles, link probing during
+search (use `--check-links`), full replay that re-normalises stored payloads
+(current replay verifies payload hashes and re-derives the stored snapshot), the
+local web UI and the desktop shell.
 
 ## Why another literature tool
 
@@ -200,7 +237,7 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.3 in progress | Search, screen, extract, review, verify, replay, batch |
+| CLI | v0.3 in progress | Search, screen, extract, stance, review, argue, counter, verify, replay |
 | Local web UI | v0.4 | Browse, triage, read, edit |
 | Desktop app | v0.5 | Same UI in a shell, for people who will not open a terminal |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |

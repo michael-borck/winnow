@@ -1,7 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { AcademicSource, Citability, IntegrityNotice } from '../types.js';
+import type { AcademicSource, Citability, IntegrityNotice, ScreeningStance } from '../types.js';
 import type { Brief } from '../brief/brief.js';
 import { loadExtractionState } from '../extraction/extraction.js';
+import { loadStanceState } from '../stance/stance.js';
 import { isCitable } from '../verification/citability.js';
 import { normaliseText } from '../text/normalise.js';
 import { firstAuthorSurname, shortHash } from '../text/ids.js';
@@ -19,6 +20,11 @@ export interface DraftCoverage {
   included?: number;
   sourcesWithEvidence?: number;
   claims?: number;
+  supports?: number;
+  opposes?: number;
+  mixed?: number;
+  unclear?: number;
+  unlabelled?: number;
 }
 
 export interface DraftCheckResult {
@@ -48,6 +54,7 @@ export interface EvidenceClaim {
   doi?: string;
   citability: Citability;
   integrity: IntegrityNotice[];
+  stance?: ScreeningStance;
   field: string;
   value: string;
   quote: string;
@@ -63,9 +70,34 @@ export interface EvidenceSource {
   venue?: string;
   citability: Citability;
   integrity: IntegrityNotice[];
+  stance?: ScreeningStance;
+  stanceConfirmed?: boolean;
+  relevance?: string;
   rank: number;
   fields: string[];
   abstract?: string;
+}
+
+export interface ArgumentNode {
+  sourceId: string;
+  title: string;
+  authors: string[];
+  year: number | null;
+  stance: ScreeningStance | 'unlabelled';
+  relevance?: string;
+  claims: number;
+  quote?: string;
+}
+
+export interface ArgumentMap {
+  thesis: string;
+  supports: ArgumentNode[];
+  opposes: ArgumentNode[];
+  mixed: ArgumentNode[];
+  unclear: ArgumentNode[];
+  unlabelled: ArgumentNode[];
+  strongestSupport?: ArgumentNode;
+  strongestOppose?: ArgumentNode;
 }
 
 export interface EvidenceBundle {
@@ -85,10 +117,11 @@ export interface EvidenceBundle {
 export interface StructuredDraft {
   id: string;
   runId: string;
-  mode: 'review';
+  mode: 'review' | 'argue';
   writer: 'template';
   title: string;
   sentences: DraftSentence[];
+  argumentMap?: ArgumentMap;
   createdAt: string;
   basis: {
     included: number;
@@ -153,6 +186,7 @@ export function buildEvidenceBundle(
       ...(row.source.venue ? { venue: row.source.venue } : {}),
       citability: row.citability,
       integrity: row.verification.integrity,
+      ...(row.relevance ? { relevance: row.relevance } : {}),
       rank: row.rank,
       fields: sourceFields,
       ...(row.source.abstract ? { abstract: row.source.abstract } : {}),
@@ -269,6 +303,205 @@ export function generateTemplateDraft(
   };
 }
 
+export function buildArgumentBundle(
+  db: DatabaseSync,
+  runId: string,
+  thesis: string,
+  fields: string[],
+  options: { allowSuggested?: boolean } = {},
+): EvidenceBundle {
+  const bundle = buildEvidenceBundle(db, runId, fields);
+  const stance = loadStanceState(db, runId, thesis);
+  const stanceById = new Map<
+    string,
+    { label: ScreeningStance; confirmed: boolean }
+  >();
+
+  for (const item of stance.sources) {
+    if (item.stance) {
+      stanceById.set(item.source.id, {
+        label: item.stance,
+        confirmed: true,
+      });
+    } else if (options.allowSuggested === true && item.suggestion) {
+      stanceById.set(item.source.id, {
+        label: item.suggestion.label,
+        confirmed: false,
+      });
+    }
+  }
+
+  return {
+    ...bundle,
+    sources: bundle.sources.map((source) => {
+      const value = stanceById.get(source.id);
+      return value
+        ? { ...source, stance: value.label, stanceConfirmed: value.confirmed }
+        : source;
+    }),
+    claims: bundle.claims.map((claim) => {
+      const value = stanceById.get(claim.sourceId);
+      return value ? { ...claim, stance: value.label } : claim;
+    }),
+  };
+}
+
+export function buildArgumentMap(
+  bundle: EvidenceBundle,
+  thesis: string,
+): ArgumentMap {
+  const groups = {
+    supports: [] as ArgumentNode[],
+    opposes: [] as ArgumentNode[],
+    mixed: [] as ArgumentNode[],
+    unclear: [] as ArgumentNode[],
+    unlabelled: [] as ArgumentNode[],
+  };
+
+  for (const source of bundle.sources) {
+    const claims = bundle.claims.filter(
+      (claim) => claim.sourceId === source.id,
+    );
+    const node: ArgumentNode = {
+      sourceId: source.id,
+      title: source.title,
+      authors: source.authors,
+      year: source.year,
+      stance: source.stance ?? 'unlabelled',
+      ...(source.relevance ? { relevance: source.relevance } : {}),
+      claims: claims.length,
+      ...(claims[0]?.quote ? { quote: claims[0].quote } : {}),
+    };
+    groups[node.stance].push(node);
+  }
+
+  for (const group of Object.values(groups)) {
+    group.sort((a, b) => {
+      const priority = relevancePriority(a.relevance) - relevancePriority(b.relevance);
+      if (priority !== 0) return priority;
+      if (b.claims !== a.claims) return b.claims - a.claims;
+      return (b.year ?? 0) - (a.year ?? 0);
+    });
+  }
+
+  return {
+    thesis,
+    ...groups,
+    ...(groups.supports[0] ? { strongestSupport: groups.supports[0] } : {}),
+    ...(groups.opposes[0] ? { strongestOppose: groups.opposes[0] } : {}),
+  };
+}
+
+export function generateArgumentDraft(
+  bundle: EvidenceBundle,
+  thesis: string,
+  map: ArgumentMap,
+): StructuredDraft {
+  const sentences: DraftSentence[] = [];
+  const anySuggested = bundle.sources.some(
+    (source) => source.stance && source.stanceConfirmed === false,
+  );
+  const supportCount = map.supports.length;
+  const opposeCount = map.opposes.length;
+  const mixedCount = map.mixed.length;
+  const unclearCount = map.unclear.length;
+  const unlabelledCount = map.unlabelled.length;
+
+  sentences.push(
+    sentence({
+      text: `This argument map uses ${anySuggested ? 'confirmed and suggested' : 'confirmed'} evidence and stance labels.`,
+      type: 'framing',
+      section: 'Overview',
+    }),
+  );
+
+  sentences.push(
+    sentence({
+      text: `The map has ${supportCount} supporting, ${opposeCount} opposing, ${mixedCount} mixed and ${unclearCount} unclear sources, with ${unlabelledCount} unlabelled.`,
+      type: 'coverage',
+      section: 'Overview',
+      coverage: {
+        supports: supportCount,
+        opposes: opposeCount,
+        mixed: mixedCount,
+        unclear: unclearCount,
+        unlabelled: unlabelledCount,
+      },
+    }),
+  );
+
+  const groups: Array<{
+    stance: ScreeningStance;
+    label: string;
+  }> = [
+    { stance: 'supports', label: 'Supporting evidence' },
+    { stance: 'opposes', label: 'Counter-evidence' },
+    { stance: 'mixed', label: 'Mixed evidence' },
+  ];
+
+  for (const group of groups) {
+    for (const claim of bundle.claims.filter(
+      (item) => item.stance === group.stance,
+    )) {
+      sentences.push(
+        sentence({
+          text: `{{cite:${claim.sourceId}}} ${asSentence(claim.value)}${citationMarker(claim)}`,
+          type: 'evidence',
+          section: group.label,
+          citations: [claim.sourceId],
+          quotes: [
+            {
+              sourceId: claim.sourceId,
+              quote: claim.quote,
+              ...(claim.location ? { location: claim.location } : {}),
+            },
+          ],
+        }),
+      );
+    }
+  }
+
+  if (map.strongestSupport && map.strongestOppose) {
+    sentences.push(
+      sentence({
+        text: `The evidence is divided on this thesis. {{cite:${map.strongestSupport.sourceId}}} {{cite:${map.strongestOppose.sourceId}}}`,
+        type: 'synthesis',
+        section: 'Synthesis',
+        citations: [map.strongestSupport.sourceId, map.strongestOppose.sourceId],
+        quotes: [],
+      }),
+    );
+  } else if (map.strongestSupport || map.strongestOppose) {
+    sentences.push(
+      sentence({
+        text: 'The confirmed evidence falls on one side of this thesis.',
+        type: 'framing',
+        section: 'Synthesis',
+      }),
+    );
+  }
+
+  sentences.push(
+    sentence({
+      text: 'A confirmed source that contradicts the strongest opposing evidence would change the conclusion.',
+      type: 'framing',
+      section: 'What would change the conclusion',
+    }),
+  );
+
+  return {
+    id: `draft-${shortHash(`${bundle.runId}|${thesis}|${bundle.claims.map((claim) => claim.id).join('|')}`)}`,
+    runId: bundle.runId,
+    mode: 'argue',
+    writer: 'template',
+    title: `Argument: ${thesis}`,
+    sentences,
+    argumentMap: map,
+    createdAt: new Date().toISOString(),
+    basis: bundle.counts,
+  };
+}
+
 export function checkDraft(
   bundle: EvidenceBundle,
   draft: StructuredDraft,
@@ -373,11 +606,15 @@ export function checkDraft(
         : undefined;
     if (
       item.type === 'synthesis' &&
-      /\b(disagree|disagreement|contrast|mixed|however|oppos\w*)/i.test(plain)
+      /\b(disagree|disagreement|contrast|divided|mixed|however|oppos\w*)/i.test(plain)
     ) {
-      synthesisOk = false;
-      synthesisMessage =
-        'disagreement language needs confirmed stance data, which this run does not have';
+      const labels = [...uniqueCitations]
+        .map((id) => sources.get(id)?.stance)
+        .filter((label): label is ScreeningStance => Boolean(label));
+      synthesisOk = labels.length >= 2 && new Set(labels).size >= 2;
+      synthesisMessage = synthesisOk
+        ? undefined
+        : 'disagreement language needs two sources with differing stances';
     }
     checks.push(check('5. synthesis shape', synthesisOk, synthesisMessage));
 
@@ -419,6 +656,23 @@ export function renderDraftMarkdown(
       `${bundle.counts.claims} claims. Support check not run.*`,
     '',
   );
+
+  if (draft.argumentMap) {
+    const map = draft.argumentMap;
+    lines.push('## Argument map', '');
+    lines.push(`- Supports: ${map.supports.length}`);
+    lines.push(`- Opposes: ${map.opposes.length}`);
+    lines.push(`- Mixed: ${map.mixed.length}`);
+    lines.push(`- Unclear: ${map.unclear.length}`);
+    lines.push(`- Unlabelled: ${map.unlabelled.length}`);
+    if (map.strongestSupport) {
+      lines.push(`- Strongest supporting: ${nodeLabel(map.strongestSupport)}`);
+    }
+    if (map.strongestOppose) {
+      lines.push(`- Strongest opposing: ${nodeLabel(map.strongestOppose)}`);
+    }
+    lines.push('');
+  }
 
   let section = '';
   for (const item of kept) {
@@ -566,4 +820,22 @@ function titleCase(value: string): string {
   return value
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function relevancePriority(value: string | undefined): number {
+  switch (value) {
+    case 'core':
+      return 0;
+    case 'supporting':
+      return 1;
+    case 'peripheral':
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function nodeLabel(node: ArgumentNode): string {
+  const surname = firstAuthorSurname(node.authors[0]) || 'Anon';
+  return `${surname} (${node.year ?? 'n.d.'}) — ${node.title}`;
 }

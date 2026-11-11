@@ -64,6 +64,9 @@ export {
 export {
   buildEvidenceBundle,
   generateTemplateDraft,
+  buildArgumentBundle,
+  buildArgumentMap,
+  generateArgumentDraft,
   checkDraft,
   renderDraftMarkdown,
   formatDraftJson,
@@ -78,7 +81,33 @@ export {
   type EvidenceSource,
   type EvidenceBundle,
   type StructuredDraft,
+  type ArgumentNode,
+  type ArgumentMap,
 } from './drafting/drafting.js';
+
+export {
+  loadStanceState,
+  countStances,
+  suggestStance,
+  recordStanceDecision,
+  recordStanceSuggestionFor,
+  importStances,
+  parseStances,
+  detectStanceFormat,
+  formatStanceTable,
+  formatStanceJson,
+  formatStanceCsv,
+  normaliseThesis,
+  thesisHash,
+  StanceError,
+  type StanceSuggestion,
+  type StanceSuggestionDraft,
+  type StanceState,
+  type StanceCounts,
+  type StanceSummary,
+  type StanceInput,
+  type StanceImportResult,
+} from './stance/stance.js';
 
 export {
   parseBrief,
@@ -128,6 +157,10 @@ export {
   getLatestExtractionSuggestions,
   saveDraft,
   getDraft,
+  recordStance,
+  recordStanceSuggestion,
+  getCurrentStances,
+  getLatestStanceSuggestions,
   runSourceCounts,
   LATEST_SCHEMA_VERSION,
   type RunRow,
@@ -138,6 +171,8 @@ export {
   type ExtractionRow,
   type ExtractionSuggestionRow,
   type DraftRow,
+  type StanceRow,
+  type StanceSuggestionRow,
 } from './project/db.js';
 
 export {
