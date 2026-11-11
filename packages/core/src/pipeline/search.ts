@@ -18,11 +18,23 @@ export async function searchLiterature(
   const startedAt = new Date().toISOString();
   const retrieval = await retrieve(topic, options);
 
-  const filtered = options.type
+  const typeFilters = options.types?.length
+    ? options.types
+    : options.type
+      ? [options.type]
+      : [];
+
+  let filtered = typeFilters.length
     ? retrieval.candidates.filter((candidate) =>
-        matchesType(candidate.source.type, options.type),
+        typeFilters.some((type) => matchesType(candidate.source.type, type)),
       )
     : retrieval.candidates;
+
+  if (options.openAccessOnly) {
+    filtered = filtered.filter((candidate) =>
+      Boolean(candidate.source.openAccessUrl),
+    );
+  }
 
   const merged = dedupeCandidates(filtered);
 

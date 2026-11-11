@@ -192,6 +192,7 @@
       <span>OpenAlex + Crossref</span>
       <span>DOI resolution via cite-sight-core</span>
       <span>SQLite on your machine</span>
+      <span>YAML briefs</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
     </div>
@@ -247,10 +248,10 @@
       <div class="split">
         <div>
           <p class="sub">
-            The v0.1 scaffold retrieves, deduplicates, verifies and ranks. It
-            stores the raw provider payloads, every verification axis and the
-            ranked set in one SQLite database. Replay checks payload hashes and
-            re-derives the deterministic snapshot.
+            The v0.1 scaffold retrieves, deduplicates, verifies and ranks. Briefs
+            add a question, thesis and machine filters in YAML. Everything is
+            stored in one SQLite database, with raw provider payloads kept for
+            replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -267,6 +268,10 @@ npm link ./packages/cli
 winnow init phd-review
 <span class="prompt">cd</span> phd-review
 winnow search "retrieval augmented generation" --limit 20
+
+<span class="comment"># or use a brief: question, thesis and filters</span>
+winnow brief briefs/question.md
+winnow search --brief briefs/question.md --limit 20
 
 <span class="comment"># verify one DOI, or every DOI in a file</span>
 winnow verify 10.1038/s41586-020-2649-2
@@ -296,7 +301,7 @@ winnow replay &lt;run-id&gt;</code></pre>
             <tr>
               <td>v0.2</td>
               <td>Screening and extraction: human decisions, evidence table, stage gates, PRISMA-inspired counts</td>
-              <td class="next">Next</td>
+              <td class="next">In progress</td>
             </tr>
             <tr>
               <td>v0.3</td>

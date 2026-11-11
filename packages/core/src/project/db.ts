@@ -14,6 +14,7 @@ import type {
 import { citability } from '../verification/citability.js';
 import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
+import { briefId, type Brief } from '../brief/brief.js';
 
 export interface RunRow {
   id: string;
@@ -71,6 +72,21 @@ export function migrate(db: DatabaseSync): void {
       component_health_json TEXT NOT NULL DEFAULT '{}',
       output_sha256 TEXT,
       status TEXT NOT NULL DEFAULT 'running'
+    );
+
+    CREATE TABLE IF NOT EXISTS briefs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      question TEXT,
+      thesis TEXT,
+      mode TEXT NOT NULL,
+      scope_json TEXT NOT NULL,
+      filters_json TEXT NOT NULL,
+      criteria_json TEXT NOT NULL,
+      counter INTEGER NOT NULL,
+      raw_text TEXT NOT NULL,
+      path TEXT,
+      created_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS sources (
@@ -179,6 +195,38 @@ export function createRun(
     `INSERT INTO runs (id, project_id, started_at, query, config_json, stages_json, component_health_json, status)
      VALUES (?, NULL, ?, ?, ?, '{}', '{}', 'running')`,
   ).run(input.id, new Date().toISOString(), input.query, JSON.stringify(input.config));
+}
+
+export function saveBrief(db: DatabaseSync, brief: Brief): string {
+  const id = briefId(brief);
+  db.prepare(
+    `INSERT INTO briefs
+     (id, project_id, question, thesis, mode, scope_json, filters_json, criteria_json, counter, raw_text, path, created_at)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       question = excluded.question,
+       thesis = excluded.thesis,
+       mode = excluded.mode,
+       scope_json = excluded.scope_json,
+       filters_json = excluded.filters_json,
+       criteria_json = excluded.criteria_json,
+       counter = excluded.counter,
+       raw_text = excluded.raw_text,
+       path = excluded.path`,
+  ).run(
+    id,
+    brief.question ?? null,
+    brief.thesis ?? null,
+    brief.mode,
+    JSON.stringify(brief.scope),
+    JSON.stringify(brief.filters),
+    JSON.stringify(brief.criteria),
+    brief.counter ? 1 : 0,
+    brief.raw,
+    brief.path ?? null,
+    new Date().toISOString(),
+  );
+  return id;
 }
 
 export async function savePayload(

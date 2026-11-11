@@ -16,6 +16,22 @@ export { rankCandidates } from './pipeline/rank.js';
 export { searchLiterature } from './pipeline/search.js';
 
 export {
+  parseBrief,
+  readBrief,
+  briefId,
+  formatBriefSummary,
+  formatBriefJson,
+  BriefError,
+  type Brief,
+  type BriefMode,
+  type BriefFilters,
+  type BriefCriteria,
+  type BriefScope,
+  type BriefWarning,
+  type ParsedBrief,
+} from './brief/brief.js';
+
+export {
   initProject,
   findProject,
   openProject,
@@ -29,6 +45,7 @@ export {
   createRun,
   savePayload,
   saveRunSources,
+  saveBrief,
   finishRun,
   getRun,
   getPayloads,

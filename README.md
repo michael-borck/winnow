@@ -1,5 +1,7 @@
 # Winnow
 
+[![CI](https://github.com/michael-borck/winnow/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-borck/winnow/actions/workflows/ci.yml)
+
 > Find, verify, and weigh the literature. Locally.
 
 Winnow is a privacy-first literature search and review tool. Give it a topic, a
@@ -44,19 +46,56 @@ Formats: `--format table|json|csv|bibtex|csl`. A search without a project runs
 ephemerally; `--no-save` does the same inside a project. `--provider openalex`
 or `--provider crossref` restricts retrieval.
 
+## Briefs
+
+A brief is YAML frontmatter plus optional context. Machine filters are kept
+separate from criteria a human judges.
+
+```yaml
+---
+mode: review
+question: Does retrieval-augmented generation reduce citation fabrication?
+thesis: Verified retrieval reduces fabrication in literature reviews.
+scope:
+  date_range: 2018..2026
+  disciplines: [computer science]
+filters:
+  types: [journal-article, preprint]
+  languages: [en]
+  open_access: true
+criteria:
+  include:
+    - studies measuring citation accuracy
+  exclude:
+    - opinion pieces
+counter: false
+---
+Context the writer may use when drafting.
+```
+
+```bash
+winnow brief briefs/question.md
+winnow search --brief briefs/question.md --limit 20
+```
+
+Explicit CLI flags override brief filters. `winnow brief --format json` prints
+the parsed structure. See [SPEC.md](SPEC.md) for the full schema.
+
 ## What works now
 
 - `winnow init` — project folder, `.winnow/project.json`, SQLite schema, local
   data ignored by git.
+- `winnow brief` — parse and validate a YAML brief, with warnings for unknown
+  fields and machine filters separated from judged criteria.
 - `winnow search` — OpenAlex and Crossref retrieval, deduplication, orthogonal
   verification, citability, RRF ranking, payload storage, JSON/CSV/BibTeX/CSL
-  export.
+  export. `--brief` supplies the topic and filters.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
-- Unit and integration tests across citability, dedupe, ranking, formatting,
-  project lifecycle, database updates and replay.
+- Unit and integration tests across briefs, citability, dedupe, ranking,
+  formatting, project lifecycle, database updates and replay.
 
 Not yet: screening, extraction, grounded drafting, argument maps, counter-
 evidence, link probing during search (use `--check-links`), full replay that

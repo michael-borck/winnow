@@ -3,11 +3,14 @@ import { Command } from 'commander';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  BriefError,
   citability,
   createRun,
   findProject,
   finishRun,
   formatBibtex,
+  formatBriefJson,
+  formatBriefSummary,
   formatCsl,
   formatCsv,
   formatSearchJson,
@@ -16,12 +19,15 @@ import {
   initProject,
   isCitable,
   openProject,
+  readBrief,
   replayRun,
+  saveBrief,
   savePayload,
   saveRunSources,
   searchLiterature,
   snapshotForRankedSources,
   verifyDoi,
+  type ParsedBrief,
   type RankedSource,
   type VerificationRecord,
   type VerifiedDoi,
@@ -38,10 +44,12 @@ class UsageError extends Error {
 
 interface SearchCliOptions {
   project?: string;
+  brief?: string;
   limit: string;
   since?: string;
   until?: string;
   type?: string;
+  openAccess?: boolean;
   provider: string;
   format: string;
   out?: string;
@@ -84,13 +92,40 @@ program
   });
 
 program
-  .command('search <topic>')
+  .command('brief <file>')
+  .description('Validate a brief file and print its parsed fields')
+  .option('--format <format>', 'text or json', 'text')
+  .action(async (file: string, options: { format: string }) => {
+    const format = parseFormat(options.format, ['text', 'json']);
+    try {
+      const parsed = await readBrief(file);
+      if (format === 'json' && parsed.warnings.length) {
+        for (const warning of parsed.warnings) {
+          process.stderr.write(`winnow: ${warning.field}: ${warning.message}\n`);
+        }
+      }
+      const output =
+        format === 'json'
+          ? formatBriefJson(parsed.brief)
+          : formatBriefSummary(parsed);
+      await emit(output);
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof BriefError) throw new UsageError(error.message);
+      throw error;
+    }
+  });
+
+program
+  .command('search [topic]')
   .description('Explore: retrieve, deduplicate, verify, rank and select sources')
   .option('--project <path>', 'project directory or name (default: nearest project)')
+  .option('--brief <file>', 'brief file with question, thesis and filters')
   .option('--limit <n>', 'maximum selected sources', '20')
   .option('--since <year>', 'earliest publication year')
   .option('--until <year>', 'latest publication year')
   .option('--type <type>', 'source type filter, e.g. article or preprint')
+  .option('--open-access', 'only sources with an open-access link')
   .option('--provider <list>', 'comma-separated providers', 'openalex,crossref')
   .option('--format <format>', 'table, json, csv, bibtex or csl', 'table')
   .option('--out <file>', 'write output to a file')
@@ -98,12 +133,57 @@ program
   .option('--no-abstracts', 'omit abstracts from table output')
   .option('--check-links', 'probe landing pages (slow; informational only)')
   .option('--mailto <email>', 'polite-pool email for scholarly APIs')
-  .action(async (topic: string, options: SearchCliOptions) => {
+  .action(async (topicArg: string | undefined, options: SearchCliOptions) => {
+    let parsedBrief: ParsedBrief | undefined;
+    if (options.brief) {
+      try {
+        parsedBrief = await readBrief(options.brief);
+      } catch (error) {
+        if (error instanceof BriefError) throw new UsageError(error.message);
+        throw error;
+      }
+      for (const warning of parsedBrief.warnings) {
+        process.stderr.write(`winnow: ${warning.field}: ${warning.message}\n`);
+      }
+    }
+
+    const topic =
+      topicArg?.trim() ||
+      parsedBrief?.brief.question ||
+      parsedBrief?.brief.thesis;
+    if (!topic) {
+      throw new UsageError('Provide a topic, or a brief with a question or thesis');
+    }
+
     const limit = parseLimit(options.limit);
-    const since = parseYear(options.since, 'since');
-    const until = parseYear(options.until, 'until');
+    const since =
+      parseYear(options.since, 'since') ?? parsedBrief?.brief.filters.since;
+    const until =
+      parseYear(options.until, 'until') ?? parsedBrief?.brief.filters.until;
     if (since && until && since > until) {
       throw new UsageError('--since must not be later than --until');
+    }
+
+    const types = options.type
+      ? options.type
+          .split(',')
+          .map((type) => type.trim())
+          .filter(Boolean)
+      : parsedBrief?.brief.filters.types;
+
+    const openAccessOnly =
+      options.openAccess === true ||
+      parsedBrief?.brief.filters.openAccess === true;
+
+    if (parsedBrief?.brief.counter) {
+      process.stderr.write(
+        'winnow: counter-evidence is not implemented yet; brief.counter ignored\n',
+      );
+    }
+    if (parsedBrief?.brief.filters.languages.length) {
+      process.stderr.write(
+        'winnow: language filtering is not available yet; filters.languages ignored\n',
+      );
     }
 
     const format = parseFormat(options.format, ['table', 'json', 'csv', 'bibtex', 'csl']);
@@ -116,6 +196,8 @@ program
       since,
       until,
       type: options.type,
+      types,
+      openAccessOnly,
       providers: options.provider
         .split(',')
         .map((provider) => provider.trim())
@@ -128,9 +210,13 @@ program
     const selected = result.sources.filter((source) => source.selected);
 
     let savedPath: string | null = null;
+    let briefId: string | null = null;
     if (projectRoot) {
       const project = await openProject(projectRoot);
       try {
+        if (parsedBrief) {
+          briefId = saveBrief(project.db, parsedBrief.brief);
+        }
         createRun(project.db, {
           id: result.runId,
           query: result.query,
@@ -139,9 +225,13 @@ program
             since,
             until,
             type: options.type,
+            types,
+            openAccessOnly,
             providers: options.provider,
             checkLinks: options.checkLinks === true,
             mailto: options.mailto ?? null,
+            briefId,
+            briefPath: parsedBrief?.brief.path ?? null,
           },
         });
         for (const payload of result.payloads) {

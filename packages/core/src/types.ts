@@ -144,6 +144,8 @@ export interface SearchOptions {
   since?: number;
   until?: number;
   type?: string;
+  types?: string[];
+  openAccessOnly?: boolean;
   providers?: string[];
   mailto?: string;
   checkLinks?: boolean;

@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold — `init`, `search`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.2 brief parsing — `init`, `brief`, `search`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -921,3 +921,4 @@ behaviour changes.
 | v1.0 | 2026-11-11 | Initial specification (`1fe5a81`) |
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
+| v0.2 (partial) | 2026-11-11 | CI workflow and YAML brief parser; brief question, thesis, filters and criteria wired into `search` and stored with the run |

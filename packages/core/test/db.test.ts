@@ -3,8 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { initProject } from '../src/project/project.js';
-import { createRun, saveRunSources } from '../src/project/db.js';
+import { createRun, saveBrief, saveRunSources } from '../src/project/db.js';
 import type { RankedSource } from '../src/types.js';
+import type { Brief } from '../src/brief/brief.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -74,6 +75,40 @@ describe('saveRunSources', () => {
     expect(identifiers).toEqual([{ value: '10.1/repeat' }]);
     expect(text?.text).toBe('The first abstract.');
     expect(verifications).toEqual([{ identity: 'verified' }]);
+
+    project.db.close();
+  });
+});
+
+describe('saveBrief', () => {
+  it('stores a parsed brief and is idempotent by content hash', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    const brief: Brief = {
+      mode: 'review',
+      question: 'Does it work?',
+      scope: { disciplines: ['education'], languages: ['en'] },
+      filters: { types: ['article'], languages: ['en'], since: 2020 },
+      criteria: { include: ['measured outcomes'], exclude: ['opinion'] },
+      counter: false,
+      raw: '---\nquestion: Does it work?\n---\n',
+    };
+
+    const first = saveBrief(project.db, brief);
+    const second = saveBrief(project.db, brief);
+    expect(second).toBe(first);
+
+    const row = project.db
+      .prepare('SELECT question, mode, filters_json FROM briefs WHERE id = ?')
+      .get(first) as {
+      question: string;
+      mode: string;
+      filters_json: string;
+    };
+
+    expect(row.question).toBe('Does it work?');
+    expect(row.mode).toBe('review');
+    expect(JSON.parse(row.filters_json)).toMatchObject({ since: 2020 });
 
     project.db.close();
   });
