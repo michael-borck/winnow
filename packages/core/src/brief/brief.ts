@@ -10,6 +10,11 @@ export interface BriefFilters {
   since?: number;
   until?: number;
   openAccess?: boolean;
+  excludeKeywords: string[];
+  excludeVenues: string[];
+  excludeDomains: string[];
+  excludeTypes: string[];
+  excludeLanguages: string[];
 }
 
 export interface BriefCriteria {
@@ -63,7 +68,18 @@ const TOP_LEVEL_KEYS = new Set([
   'counter',
 ]);
 const SCOPE_KEYS = new Set(['date_range', 'disciplines', 'languages']);
-const FILTER_KEYS = new Set(['types', 'languages', 'since', 'until', 'open_access']);
+const FILTER_KEYS = new Set([
+  'types',
+  'languages',
+  'since',
+  'until',
+  'open_access',
+  'exclude_keywords',
+  'exclude_venues',
+  'exclude_domains',
+  'exclude_types',
+  'exclude_languages',
+]);
 const CRITERIA_KEYS = new Set(['include', 'exclude']);
 
 export function parseBrief(
@@ -123,6 +139,31 @@ export function parseBrief(
   const filters: BriefFilters = {
     types: stringArray(filtersData.types, 'filters.types', warnings),
     languages: stringArray(filtersData.languages, 'filters.languages', warnings),
+    excludeKeywords: stringArray(
+      filtersData.exclude_keywords,
+      'filters.exclude_keywords',
+      warnings,
+    ),
+    excludeVenues: stringArray(
+      filtersData.exclude_venues,
+      'filters.exclude_venues',
+      warnings,
+    ),
+    excludeDomains: stringArray(
+      filtersData.exclude_domains,
+      'filters.exclude_domains',
+      warnings,
+    ),
+    excludeTypes: stringArray(
+      filtersData.exclude_types,
+      'filters.exclude_types',
+      warnings,
+    ),
+    excludeLanguages: stringArray(
+      filtersData.exclude_languages,
+      'filters.exclude_languages',
+      warnings,
+    ),
   };
 
   const explicitSince = optionalYear(
@@ -233,6 +274,18 @@ export function formatBriefSummary(parsed: ParsedBrief): string {
   }
   if (brief.filters.openAccess != null) {
     filters.push(`open access ${brief.filters.openAccess ? 'only' : 'any'}`);
+  }
+  if (brief.filters.excludeKeywords.length) {
+    filters.push(`${brief.filters.excludeKeywords.length} excluded keywords`);
+  }
+  if (brief.filters.excludeVenues.length) {
+    filters.push(`${brief.filters.excludeVenues.length} excluded venues`);
+  }
+  if (brief.filters.excludeDomains.length) {
+    filters.push(`${brief.filters.excludeDomains.length} excluded domains`);
+  }
+  if (brief.filters.excludeTypes.length) {
+    filters.push(`${brief.filters.excludeTypes.length} excluded types`);
   }
   lines.push(`Filters: ${filters.length ? filters.join('; ') : 'none'}`);
 

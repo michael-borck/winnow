@@ -17,3 +17,4 @@ consequences.
 | [0009](0009-review-scope.md) | Structured narrative and scoping reviews in v1 |
 | [0010](0010-merge-rank-select.md) | Cross-provider merge, rank and selection |
 | [0011](0011-replay-and-payloads.md) | Replay, re-execute and provider payload storage |
+| [0012](0012-human-screening.md) | Human screening decisions, separate tool suggestions |

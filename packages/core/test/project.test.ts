@@ -28,7 +28,7 @@ describe('project lifecycle', () => {
     const parent = await temporaryDirectory();
     const project = await initProject('demo', parent);
 
-    expect(project.meta.schemaVersion).toBe(1);
+    expect(project.meta.schemaVersion).toBe(2);
     expect(project.root).toBe(path.join(parent, 'demo'));
 
     const tables = project.db
@@ -41,11 +41,13 @@ describe('project lifecycle', () => {
     expect(tables).toContain('verifications');
     expect(tables).toContain('raw_payloads');
     expect(tables).toContain('run_sources');
+    expect(tables).toContain('screening');
+    expect(tables).toContain('screening_suggestions');
 
     const version = project.db
       .prepare('SELECT version FROM schema_version')
       .get() as { version: number };
-    expect(version.version).toBe(1);
+    expect(version.version).toBe(2);
 
     project.db.close();
     await expect(initProject('demo', parent)).rejects.toThrow('already exists');

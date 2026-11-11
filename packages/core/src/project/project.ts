@@ -1,9 +1,9 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { migrate } from './db.js';
+import { LATEST_SCHEMA_VERSION, migrate } from './db.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = LATEST_SCHEMA_VERSION;
 
 export interface ProjectMeta {
   name: string;
@@ -107,6 +107,11 @@ export async function openProject(rootPath: string): Promise<OpenProject> {
     throw new Error(
       `Project schema ${meta.schemaVersion} is newer than this Winnow (${SCHEMA_VERSION})`,
     );
+  }
+
+  if (meta.schemaVersion < SCHEMA_VERSION) {
+    meta = { ...meta, schemaVersion: SCHEMA_VERSION };
+    await writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
   }
 
   const db = new DatabaseSync(path.join(root, '.winnow', 'project.sqlite'));

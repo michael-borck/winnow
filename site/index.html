@@ -193,6 +193,7 @@
       <span>DOI resolution via cite-sight-core</span>
       <span>SQLite on your machine</span>
       <span>YAML briefs</span>
+      <span>Human screening</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
     </div>
@@ -248,9 +249,11 @@
       <div class="split">
         <div>
           <p class="sub">
-            The v0.1 scaffold retrieves, deduplicates, verifies and ranks. Briefs
-            add a question, thesis and machine filters in YAML. Everything is
-            stored in one SQLite database, with raw provider payloads kept for
+            The v0.2 work retrieves, deduplicates, verifies and ranks. Briefs
+            add a question, thesis, machine filters and exclusion flags.
+            Screening is a human decision: the tool suggests, stores its
+            suggestion separately, and never overwrites your call. Everything
+            lives in one SQLite database, with raw provider payloads kept for
             replay.
           </p>
           <p class="note">
@@ -269,9 +272,14 @@ winnow init phd-review
 <span class="prompt">cd</span> phd-review
 winnow search "retrieval augmented generation" --limit 20
 
-<span class="comment"># or use a brief: question, thesis and filters</span>
+<span class="comment"># or use a brief: question, thesis, filters and exclusions</span>
 winnow brief briefs/question.md
 winnow search --brief briefs/question.md --limit 20
+
+<span class="comment"># screen: tool suggests, human decides</span>
+winnow screen . --suggest
+winnow screen . --interactive
+winnow screen . --format csv --out exports/decisions.csv
 
 <span class="comment"># verify one DOI, or every DOI in a file</span>
 winnow verify 10.1038/s41586-020-2649-2
@@ -300,7 +308,7 @@ winnow replay &lt;run-id&gt;</code></pre>
             </tr>
             <tr>
               <td>v0.2</td>
-              <td>Screening and extraction: human decisions, evidence table, stage gates, PRISMA-inspired counts</td>
+              <td>Screening and extraction: human decisions, tool suggestions, evidence table, stage gates, PRISMA-inspired counts</td>
               <td class="next">In progress</td>
             </tr>
             <tr>

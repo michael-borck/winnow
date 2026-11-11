@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.2 brief parsing — `init`, `brief`, `search`, `verify`, `replay`
+**Implementation:** v0.1 scaffold plus v0.2 brief parsing and screening — `init`, `brief`, `search`, `screen`, `verify`, `replay`
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -133,11 +133,28 @@ This is the "list abstracts only" mode. No model is required.
 
 Input: an existing reference file (BibTeX, RIS, CSV, JSON), or the output of
 Explore.
-Output: include / exclude / maybe suggestions, human decisions, exclusion
-reasons, tags, and PRISMA-inspired flow counts.
+Output: include / exclude / maybe decisions, a priority tier, exclusion reasons,
+tags, and PRISMA-inspired flow counts.
 
-Each screening decision is append-only. The current decision is the latest row.
-A human makes the final decision. A model may propose; it may not decide.
+The tool and the human do different jobs:
+
+- **Suggestions** are stored in `ScreeningSuggestion`: suggested decision,
+  suggested priority, confidence, rationale, method and model. They are
+  regenerable and never overwrite a decision.
+- **Decisions** are stored in `Screening`: append-only events with a reviewer,
+  timestamp, decision, priority, reason code, free-text reason and tags.
+  The current decision is the latest event. A human include always wins over a
+  tool exclusion, and the conflict is reported.
+
+Priority uses three tiers: `core`, `supporting`, `peripheral`. Exclusion reasons
+use a controlled set (`off_topic`, `wrong_population`, `wrong_method`,
+`not_empirical`, `duplicate`, `not_accessible`, `out_of_scope_date`,
+`out_of_scope_venue`, `other`) plus free text.
+
+Brief-level exclusions (`exclude_keywords`, `exclude_venues`,
+`exclude_domains`, `exclude_types`) are **flags and counts** by default, not
+silent removals. `--drop-excluded` hides flagged sources after the count has
+been shown. Keyword matching uses word boundaries, never substrings.
 
 ### 6.3 Extract
 
@@ -580,7 +597,8 @@ migration policy: a newer database refuses to open in an older binary.
 | `RunSource` | run_id, source_id, query_id, provider, provider_rank, rrf_score, rank, selected, raw_payload_id |
 | `Verification` | source_id, identity, match_category, integrity_json, link_status, completeness, confidence, provider, checked_at, evidence_json |
 | `SourceText` | source_id, kind (`abstract`/`fulltext`), text, normalised_text, sha256, licence, fetched_at |
-| `Screening` | id, source_id, suggested, decision, reason, reviewer, decided_at (append-only) |
+| `Screening` | id, run_id, source_id, decision (`include`/`exclude`/`maybe`), relevance (`core`/`supporting`/`peripheral`), reason_code, reason, tags_json, reviewer, decided_at (append-only) |
+| `ScreeningSuggestion` | id, run_id, source_id, suggested_decision, suggested_relevance, confidence, rationale, method, model, created_at |
 | `Extraction` | id, source_id, field, value, quote, location, model, confidence, suggested, confirmed, confirmed_by |
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
@@ -596,6 +614,11 @@ Notes:
 
 - `doi` lives only in `Identifier`. A view provides a convenience `doi` column.
 - Screening is append-only; "reversible" means a new row, not a lost decision.
+- Screening suggestions live in `ScreeningSuggestion`; a decision never depends
+  on a suggestion row staying current.
+- Brief exclusion filters are applied at screening as flags and counts.
+  `--drop-excluded` hides flagged sources but keeps the count and the decision
+  history.
 - Drafts carry lineage through `parent_id`; a save re-runs checks 1–5.
 - `Stance` is relative to a brief. Changing the thesis creates a new brief and
   invalidates old stances rather than silently reusing them.
@@ -620,10 +643,17 @@ winnow search <topic>                   Explore: retrieve, dedupe, verify, rank
   --out <file>
   --no-save                             Run without writing to a project
 winnow verify <doi|file>                Verify a DOI or a reference file
-winnow screen <project>                 Suggest and record include/exclude
-  --interactive                         Terminal review loop
+winnow screen [project]                 Human decisions for a run
+  --run <run-id>                        Default: latest completed run
+  --brief <file>                        Brief with exclusion filters
+  --all                                 Include unselected sources
+  --suggest                             Store heuristic tool suggestions
+  --interactive                         Quick terminal triage
   --decisions <file>                    Apply human decisions from CSV/JSON
-  --allow-suggested                     Screen model suggestions (marked)
+  --drop-excluded                       Hide sources flagged by brief filters
+  --reviewer <name>                     Reviewer for new decisions
+  --format <table|json|csv>             Default: table
+  --out <file>
 winnow extract <project> --fields ...   Structured extraction with quotes
 winnow review <project>                 Grounded review draft
   --brief <file>                        Question/thesis/scope brief
@@ -667,6 +697,10 @@ scope:
 filters:
   types: [journal-article, conference-paper, preprint]
   languages: [en]
+  exclude_keywords: [press release, pilot study]
+  exclude_venues: [Predatory Journal]
+  exclude_domains: [example.com]
+  exclude_types: [editorial]
 criteria:
   include: [studies measuring citation accuracy, preprints with code]
   exclude: [opinion pieces]
@@ -689,6 +723,7 @@ winnow search "retrieval augmented generation for literature reviews" \
   --since 2020 --limit 60 --counter --format json --out exports/sources.json
 
 winnow screen . --interactive
+winnow screen . --suggest --format csv --out exports/decisions.csv
 winnow extract . --fields method,sample,finding
 winnow review . --brief briefs/question.md --out drafts/review-v1.md
 
@@ -725,6 +760,9 @@ Partial success is never silent.
   reason), included. Labelled "PRISMA-inspired", never "PRISMA-compliant".
 - **Run report** — provider request counts, failures, ranks, model artifacts,
   gate policy and drift.
+- **Screening export** — source ID, DOI, decision, relevance, reason code,
+  reason, tags, reviewer, filter flags and tool suggestion. CSV and JSON both
+  round-trip; blank decision rows are ignored on import.
 
 Every draft ends with an evidence appendix mapping each citation to its quote
 and source, so a reader can audit the prose without rerunning the tool.
@@ -863,7 +901,19 @@ planted-fabrication set.
    score, final rank and `selected`, whether or not `--limit` selected it.
 10. A test asserts that no verification or ranking code path calls a model.
 
-### 17.2 v0.3
+### 17.2 v0.2
+
+1. A screening decision is append-only. Changing a decision adds a row; the
+   latest row is the current state.
+2. Suggestions are stored separately from decisions. A human decision can
+   override a suggestion without deleting or rewriting it.
+3. Brief exclusions flag and count; `--drop-excluded` hides flagged sources
+   only after the count is reported.
+4. CSV export/import round-trips decisions, and blank decision rows are skipped.
+5. Counts include identified, deduplicated, screened, included, excluded,
+   maybe, undecided and filtered out.
+
+### 17.3 v0.3
 
 1. On a planted-error set, checks 1–5 catch 100% of fabricated IDs, altered
    quotes, inflated numbers and wrong coverage counts.
@@ -921,4 +971,4 @@ behaviour changes.
 | v1.0 | 2026-11-11 | Initial specification (`1fe5a81`) |
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
-| v0.2 (partial) | 2026-11-11 | CI workflow and YAML brief parser; brief question, thesis, filters and criteria wired into `search` and stored with the run |
+| v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags and CSV/JSON round-trip |

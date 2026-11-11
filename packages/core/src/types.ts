@@ -60,6 +60,21 @@ export type Citability =
   | 'pending'
   | 'not_citable';
 
+export type ScreeningDecision = 'include' | 'exclude' | 'maybe';
+
+export type ScreeningRelevance = 'core' | 'supporting' | 'peripheral';
+
+export type ScreeningReasonCode =
+  | 'off_topic'
+  | 'wrong_population'
+  | 'wrong_method'
+  | 'not_empirical'
+  | 'duplicate'
+  | 'not_accessible'
+  | 'out_of_scope_date'
+  | 'out_of_scope_venue'
+  | 'other';
+
 export interface VerificationRecord {
   identity: Identity;
   matchCategory: MatchCategory;

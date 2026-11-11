@@ -1,5 +1,6 @@
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
@@ -9,12 +10,17 @@ import type {
   ProviderReference,
   RankedSource,
   RetrievalPayload,
+  ScreeningDecision,
+  ScreeningReasonCode,
+  ScreeningRelevance,
   VerificationRecord,
 } from '../types.js';
 import { citability } from '../verification/citability.js';
 import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
+
+export const LATEST_SCHEMA_VERSION = 2;
 
 export interface RunRow {
   id: string;
@@ -49,6 +55,32 @@ export interface StoredSource {
   rank: number;
   selected: boolean;
   providers: ProviderReference[];
+}
+
+export interface ScreeningRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  decision: ScreeningDecision;
+  relevance: ScreeningRelevance | null;
+  reason_code: ScreeningReasonCode | null;
+  reason: string | null;
+  tags_json: string | null;
+  reviewer: string;
+  decided_at: string;
+}
+
+export interface ScreeningSuggestionRow {
+  id: string;
+  run_id: string | null;
+  source_id: string;
+  suggested_decision: ScreeningDecision;
+  suggested_relevance: ScreeningRelevance | null;
+  confidence: number | null;
+  rationale: string | null;
+  method: string;
+  model: string | null;
+  created_at: string;
 }
 
 export function migrate(db: DatabaseSync): void {
@@ -165,6 +197,41 @@ export function migrate(db: DatabaseSync): void {
       FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS screening (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      decision TEXT NOT NULL CHECK (decision IN ('include', 'exclude', 'maybe')),
+      relevance TEXT,
+      reason_code TEXT,
+      reason TEXT,
+      tags_json TEXT,
+      reviewer TEXT NOT NULL,
+      decided_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS screening_suggestions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      source_id TEXT NOT NULL,
+      suggested_decision TEXT NOT NULL CHECK (suggested_decision IN ('include', 'exclude', 'maybe')),
+      suggested_relevance TEXT,
+      confidence REAL,
+      rationale TEXT,
+      method TEXT NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_screening_source
+      ON screening(source_id);
+    CREATE INDEX IF NOT EXISTS idx_screening_suggestions_source
+      ON screening_suggestions(source_id);
+
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
       run_id TEXT,
@@ -181,7 +248,15 @@ export function migrate(db: DatabaseSync): void {
 
   if (!existing) {
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
-      1,
+      LATEST_SCHEMA_VERSION,
+      new Date().toISOString(),
+    );
+  } else if (existing.version < LATEST_SCHEMA_VERSION) {
+    addColumnIfMissing(db, 'screening', 'relevance', 'TEXT');
+    addColumnIfMissing(db, 'screening', 'reason_code', 'TEXT');
+    addColumnIfMissing(db, 'screening', 'tags_json', 'TEXT');
+    db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
+      LATEST_SCHEMA_VERSION,
       new Date().toISOString(),
     );
   }
@@ -474,6 +549,12 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
       const doiRow = db
         .prepare("SELECT value FROM identifiers WHERE source_id = ? AND scheme = 'doi' LIMIT 1")
         .get(row.source_id) as { value: string } | undefined;
+      const urlRow = db
+        .prepare("SELECT value FROM identifiers WHERE source_id = ? AND scheme = 'url' LIMIT 1")
+        .get(row.source_id) as { value: string } | undefined;
+      const textRow = db
+        .prepare("SELECT text FROM source_text WHERE source_id = ? AND kind = 'abstract'")
+        .get(row.source_id) as { text: string } | undefined;
 
       const source: AcademicSource = {
         id: sourceRow.id,
@@ -483,6 +564,8 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
         venue: sourceRow.venue ?? undefined,
         type: sourceRow.type ?? undefined,
         doi: doiRow?.value,
+        url: urlRow?.value,
+        abstract: textRow?.text,
         citationCount: sourceRow.citation_count ?? undefined,
         citationProvider: sourceRow.citation_provider ?? undefined,
         citationCollectedAt: sourceRow.citation_collected_at ?? undefined,
@@ -535,4 +618,168 @@ export function recomputeCitability(
   source: StoredSource,
 ): ReturnType<typeof citability> {
   return citability(source.verification);
+}
+
+function addColumnIfMissing(
+  db: DatabaseSync,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  const columns = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+export function getLatestRun(db: DatabaseSync): RunRow | null {
+  const row = db
+    .prepare(
+      "SELECT * FROM runs WHERE status IN ('ok', 'partial') ORDER BY started_at DESC LIMIT 1",
+    )
+    .get() as RunRow | undefined;
+  return row ?? null;
+}
+
+export function runSourceCounts(
+  db: DatabaseSync,
+  runId: string,
+): { identified: number; deduplicated: number } {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS identified, COUNT(DISTINCT source_id) AS deduplicated
+       FROM run_sources WHERE run_id = ?`,
+    )
+    .get(runId) as { identified: number; deduplicated: number };
+  return {
+    identified: Number(row.identified),
+    deduplicated: Number(row.deduplicated),
+  };
+}
+
+/** Latest decision per source, across runs, because screening follows the work. */
+export function getCurrentScreening(db: DatabaseSync): Map<string, ScreeningRow> {
+  const rows = db
+    .prepare(
+      `SELECT s.* FROM screening s
+       JOIN (
+         SELECT source_id, MAX(rowid) AS max_rowid
+         FROM screening
+         GROUP BY source_id
+       ) latest ON s.rowid = latest.max_rowid`,
+    )
+    .all() as unknown as ScreeningRow[];
+  return new Map(rows.map((row) => [row.source_id, row]));
+}
+
+export function recordScreeningDecision(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    decision: ScreeningDecision;
+    relevance?: ScreeningRelevance;
+    reasonCode?: ScreeningReasonCode;
+    reason?: string;
+    tags?: string[];
+    reviewer: string;
+  },
+): ScreeningRow {
+  const row: ScreeningRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    decision: input.decision,
+    relevance: input.relevance ?? null,
+    reason_code: input.reasonCode ?? null,
+    reason: input.reason?.trim() || null,
+    tags_json: JSON.stringify(input.tags ?? []),
+    reviewer: input.reviewer,
+    decided_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO screening
+     (id, run_id, source_id, decision, relevance, reason_code, reason, tags_json, reviewer, decided_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.decision,
+    row.relevance,
+    row.reason_code,
+    row.reason,
+    row.tags_json,
+    row.reviewer,
+    row.decided_at,
+  );
+
+  return row;
+}
+
+export function recordScreeningSuggestion(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    sourceId: string;
+    suggestedDecision: ScreeningDecision;
+    suggestedRelevance?: ScreeningRelevance;
+    confidence?: number;
+    rationale?: string;
+    method: string;
+    model?: string;
+  },
+): ScreeningSuggestionRow {
+  const row: ScreeningSuggestionRow = {
+    id: randomUUID(),
+    run_id: input.runId ?? null,
+    source_id: input.sourceId,
+    suggested_decision: input.suggestedDecision,
+    suggested_relevance: input.suggestedRelevance ?? null,
+    confidence: input.confidence ?? null,
+    rationale: input.rationale?.trim() || null,
+    method: input.method,
+    model: input.model ?? null,
+    created_at: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `INSERT INTO screening_suggestions
+     (id, run_id, source_id, suggested_decision, suggested_relevance, confidence, rationale, method, model, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.run_id,
+    row.source_id,
+    row.suggested_decision,
+    row.suggested_relevance,
+    row.confidence,
+    row.rationale,
+    row.method,
+    row.model,
+    row.created_at,
+  );
+
+  return row;
+}
+
+export function getLatestSuggestions(
+  db: DatabaseSync,
+  runId: string,
+): Map<string, ScreeningSuggestionRow> {
+  const rows = db
+    .prepare(
+      `SELECT s.* FROM screening_suggestions s
+       JOIN (
+         SELECT source_id, MAX(rowid) AS max_rowid
+         FROM screening_suggestions
+         WHERE run_id = ?
+         GROUP BY source_id
+       ) latest ON s.rowid = latest.max_rowid`,
+    )
+    .all(runId) as unknown as ScreeningSuggestionRow[];
+  return new Map(rows.map((row) => [row.source_id, row]));
 }

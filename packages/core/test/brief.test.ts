@@ -131,8 +131,26 @@ filters:
     ]);
   });
 
-  it('accepts object and array date ranges', () => {
-    const object = parseBrief(`---
+  it('parses exclusion filters', () => {
+    const parsed = parseBrief(`---
+question: A question
+filters:
+  exclude_keywords: [press release, pilot study]
+  exclude_venues: [Predatory Journal]
+  exclude_domains: [example.com]
+  exclude_types: [editorial]
+---
+`);
+    expect(parsed.brief.filters.excludeKeywords).toEqual([
+      'press release',
+      'pilot study',
+    ]);
+    expect(parsed.brief.filters.excludeVenues).toEqual(['Predatory Journal']);
+    expect(parsed.brief.filters.excludeDomains).toEqual(['example.com']);
+    expect(parsed.brief.filters.excludeTypes).toEqual(['editorial']);
+  });
+
+  it('accepts object and array date ranges', () => {    const object = parseBrief(`---
 question: A question
 scope:
   date_range:

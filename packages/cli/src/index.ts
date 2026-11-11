@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { userInfo } from 'node:os';
+import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import {
   BriefError,
   citability,
   createRun,
+  detectScreeningFormat,
   findProject,
   finishRun,
   formatBibtex,
@@ -13,22 +16,38 @@ import {
   formatBriefSummary,
   formatCsl,
   formatCsv,
+  formatScreeningCsv,
+  formatScreeningJson,
+  formatScreeningTable,
   formatSearchJson,
   formatTable,
+  getLatestRun,
   hashSnapshot,
+  importScreeningDecisions,
   initProject,
   isCitable,
+  loadScreeningState,
   openProject,
+  parseScreeningDecisions,
   readBrief,
+  recordScreeningDecision,
+  recordScreeningSuggestion,
   replayRun,
   saveBrief,
   savePayload,
   saveRunSources,
   searchLiterature,
   snapshotForRankedSources,
+  suggestScreening,
   verifyDoi,
+  ScreeningError,
   type ParsedBrief,
   type RankedSource,
+  type ScreeningDecision,
+  type ScreeningReasonCode,
+  type ScreeningRelevance,
+  type ScreeningState,
+  type ScreeningSummary,
   type VerificationRecord,
   type VerifiedDoi,
 } from '@michaelborck/winnow-core';
@@ -64,6 +83,19 @@ interface VerifyCliOptions {
   out?: string;
   links: boolean;
   mailto?: string;
+}
+
+interface ScreenCliOptions {
+  run?: string;
+  brief?: string;
+  all?: boolean;
+  interactive?: boolean;
+  decisions?: string;
+  suggest?: boolean;
+  dropExcluded?: boolean;
+  reviewer?: string;
+  format: string;
+  out?: string;
 }
 
 const program = new Command();
@@ -266,6 +298,133 @@ program
   });
 
 program
+  .command('screen [project]')
+  .description('Record human screening decisions for a run')
+  .option('--run <run-id>', 'run to screen (default: latest completed)')
+  .option('--brief <file>', 'brief with exclusion filters and criteria')
+  .option('--all', 'include unselected sources')
+  .option('--interactive', 'review sources one at a time')
+  .option('--decisions <file>', 'import decisions from CSV or JSON')
+  .option('--suggest', 'store heuristic tool suggestions')
+  .option('--drop-excluded', 'hide sources matched by brief exclusion filters')
+  .option('--reviewer <name>', 'reviewer for new decisions')
+  .option('--format <format>', 'table, json or csv', 'table')
+  .option('--out <file>', 'write output to a file')
+  .action(async (projectArg: string | undefined, options: ScreenCliOptions) => {
+    const format = parseFormat(options.format, ['table', 'json', 'csv']);
+    if (options.decisions && (options.interactive || options.suggest)) {
+      throw new UsageError(
+        '--decisions cannot be combined with --interactive or --suggest',
+      );
+    }
+    if (options.interactive && !process.stdin.isTTY) {
+      throw new UsageError(
+        '--interactive needs a terminal; use --decisions or --format csv',
+      );
+    }
+
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let brief;
+      if (options.brief) {
+        try {
+          const parsed = await readBrief(options.brief);
+          brief = parsed.brief;
+          for (const warning of parsed.warnings) {
+            process.stderr.write(
+              `winnow: ${warning.field}: ${warning.message}\n`,
+            );
+          }
+          saveBrief(project.db, brief);
+        } catch (error) {
+          if (error instanceof BriefError) throw new UsageError(error.message);
+          throw error;
+        }
+      }
+
+      let runId = options.run;
+      if (!runId) {
+        const latest = getLatestRun(project.db);
+        if (!latest) {
+          throw new UsageError(
+            'No completed run found. Run `winnow search` first.',
+          );
+        }
+        runId = latest.id;
+      }
+
+      const stateOptions = {
+        all: options.all === true,
+        brief,
+        dropExcluded: options.dropExcluded === true,
+      };
+      const reviewer = options.reviewer?.trim() || userInfo().username;
+
+      if (options.decisions) {
+        let text: string;
+        try {
+          text = await readFile(options.decisions, 'utf8');
+        } catch (error) {
+          throw new UsageError(
+            `Cannot read decisions file: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        const decisionFormat = detectScreeningFormat(options.decisions, text);
+        const decisions = parseScreeningDecisions(text, decisionFormat);
+        if (!decisions.length) {
+          throw new UsageError('No decisions found in the file');
+        }
+        const imported = importScreeningDecisions(
+          project.db,
+          runId,
+          decisions,
+          reviewer,
+        );
+        process.stderr.write(`imported ${imported.imported} decision(s)\n`);
+        for (const skipped of imported.skipped) {
+          process.stderr.write(`skipped ${skipped.key}: ${skipped.reason}\n`);
+        }
+      }
+
+      if (options.suggest) {
+        const state = loadScreeningState(project.db, runId, stateOptions);
+        for (const source of state.sources) {
+          const draft = suggestScreening(source);
+          recordScreeningSuggestion(project.db, {
+            runId,
+            sourceId: source.source.id,
+            ...draft,
+          });
+        }
+        process.stderr.write(
+          `stored ${state.sources.length} suggestion(s)\n`,
+        );
+      }
+
+      if (options.interactive) {
+        const state = loadScreeningState(project.db, runId, stateOptions);
+        await runInteractiveScreening(project.db, state, runId, reviewer);
+      }
+
+      const summary = loadScreeningState(project.db, runId, stateOptions);
+      const output = renderScreeningOutput(format, summary);
+      await emit(output, options.out);
+
+      if (format === 'csv' || options.out) {
+        process.stderr.write(screeningCountsLine(summary));
+      }
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof ScreeningError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
   .command('verify <target>')
   .description('Verify a DOI, or every DOI found in a text file')
   .option('--format <format>', 'table or json', 'table')
@@ -430,6 +589,234 @@ function renderSearchOutput(
     default:
       return `${formatTable(result.sources, abstracts)}\n`;
   }
+}
+
+function renderScreeningOutput(
+  format: string,
+  summary: ScreeningSummary,
+): string {
+  if (format === 'json') return formatScreeningJson(summary);
+  if (format === 'csv') return formatScreeningCsv(summary);
+  return formatScreeningTable(summary);
+}
+
+function screeningCountsLine(summary: ScreeningSummary): string {
+  const counts = summary.counts;
+  return (
+    `screened ${counts.screened}/${counts.deduplicated}; ` +
+    `included ${counts.included}, excluded ${counts.excluded}, ` +
+    `maybe ${counts.maybe}, undecided ${counts.undecided}, ` +
+    `filtered out ${counts.filteredOut}\n`
+  );
+}
+
+type WinnowDb = Parameters<typeof recordScreeningDecision>[0];
+
+async function runInteractiveScreening(
+  db: WinnowDb,
+  summary: ScreeningSummary,
+  runId: string,
+  reviewer: string,
+): Promise<void> {
+  if (!summary.sources.length) {
+    process.stderr.write('Nothing to screen.\n');
+    return;
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    let index = 0;
+    const total = summary.sources.length;
+
+    while (index < total) {
+      const state = summary.sources[index]!;
+      printScreeningSource(state, index + 1, total);
+
+      const raw = (
+        await rl.question(
+          'Decision [i]include [c]core [p]peripheral [e]exclude [x]exclude+reason [m]maybe [s]skip [q]quit [?]help: ',
+        )
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!raw) {
+        index += 1;
+        continue;
+      }
+      if (raw === '?' || raw === 'h' || raw === 'help') {
+        printScreeningHelp();
+        continue;
+      }
+      if (raw === 'q' || raw === 'quit') {
+        process.stderr.write('stopped\n');
+        break;
+      }
+      if (raw === 's' || raw === 'skip') {
+        index += 1;
+        continue;
+      }
+
+      const save = (
+        decision: ScreeningDecision,
+        relevance?: ScreeningRelevance,
+        reasonCode?: ScreeningReasonCode,
+        reason?: string,
+      ) => {
+        recordScreeningDecision(db, {
+          runId,
+          sourceId: state.source.id,
+          decision,
+          relevance,
+          reasonCode,
+          reason,
+          reviewer,
+        });
+      };
+
+      if (raw === 'i' || raw === 'include') {
+        save('include', 'supporting');
+      } else if (raw === 'c' || raw === 'core') {
+        save('include', 'core');
+      } else if (raw === 'p' || raw === 'peripheral') {
+        save('include', 'peripheral');
+      } else if (raw === 'm' || raw === 'maybe') {
+        save('maybe');
+      } else if (raw === 'e' || raw === 'exclude') {
+        save('exclude');
+      } else if (raw === 'x' || raw === 'exclude-reason') {
+        const reasonCode = await promptReasonCode(rl);
+        if (!reasonCode) continue;
+        const note = (await rl.question('Note (optional): ')).trim();
+        save('exclude', undefined, reasonCode, note || undefined);
+      } else {
+        process.stderr.write(`winnow: unknown key ${JSON.stringify(raw)}\n`);
+        continue;
+      }
+
+      process.stderr.write('saved\n');
+      index += 1;
+    }
+  } catch (error) {
+    if (isReadlineAbort(error)) {
+      process.stderr.write('stopped\n');
+      return;
+    }
+    throw error;
+  } finally {
+    rl.close();
+  }
+}
+
+function isReadlineAbort(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || /aborted|ctrl\+d|sigint/i.test(error.message))
+  );
+}
+
+function printScreeningSource(
+  state: ScreeningState,
+  index: number,
+  total: number,
+): void {
+  const year = state.source.year ?? 'n.d.';
+  const authors = state.source.authors.slice(0, 3).join(', ');
+  const suffix = state.source.authors.length > 3 ? ' et al.' : '';
+  const width = Math.min(process.stdout.columns ?? 88, 100);
+
+  process.stdout.write('\n');
+  process.stdout.write(
+    `[${index}/${total}] rank ${state.rank} · ${state.citability}\n`,
+  );
+  process.stdout.write(`${state.source.title} (${year})\n`);
+  if (authors) {
+    process.stdout.write(
+      `${authors}${suffix}${state.source.venue ? ` — ${state.source.venue}` : ''}\n`,
+    );
+  }
+  if (state.source.doi) process.stdout.write(`doi:${state.source.doi}\n`);
+  if (state.suggestion) {
+    const confidence =
+      state.suggestion.confidence != null
+        ? ` (${state.suggestion.confidence.toFixed(2)})`
+        : '';
+    process.stdout.write(
+      `tool: ${state.suggestion.decision}/${state.suggestion.relevance ?? '-'}${confidence}` +
+        `${state.suggestion.rationale ? ` — ${state.suggestion.rationale}` : ''}\n`,
+    );
+  }
+  if (state.decision) {
+    const parts: string[] = [state.decision];
+    if (state.relevance) parts.push(state.relevance);
+    if (state.reasonCode) parts.push(state.reasonCode);
+    if (state.reason) parts.push(state.reason);
+    process.stdout.write(
+      `you: ${parts.join(' / ')}${state.reviewer ? ` — ${state.reviewer}` : ''}\n`,
+    );
+  }
+  if (state.filterFlags.length) {
+    process.stdout.write(`flags: ${state.filterFlags.join(', ')}\n`);
+  }
+  if (state.source.abstract) {
+    process.stdout.write(
+      `${wrapText(state.source.abstract.slice(0, 1200), width).join('\n')}\n`,
+    );
+  } else {
+    process.stdout.write('No abstract.\n');
+  }
+}
+
+function printScreeningHelp(): void {
+  process.stdout.write(
+    'i include (supporting) · c include (core) · p include (peripheral)\n' +
+      'e exclude · x exclude with reason code · m maybe · s skip · q quit\n',
+  );
+}
+
+async function promptReasonCode(
+  rl: ReturnType<typeof createInterface>,
+): Promise<ScreeningReasonCode | undefined> {
+  const options: Array<[string, ScreeningReasonCode]> = [
+    ['1', 'off_topic'],
+    ['2', 'wrong_population'],
+    ['3', 'wrong_method'],
+    ['4', 'not_empirical'],
+    ['5', 'duplicate'],
+    ['6', 'not_accessible'],
+    ['7', 'out_of_scope_date'],
+    ['8', 'out_of_scope_venue'],
+    ['9', 'other'],
+  ];
+
+  process.stdout.write(
+    'Reason: 1 off-topic  2 wrong population  3 wrong method  4 not empirical\n' +
+      '        5 duplicate  6 not accessible  7 date  8 venue  9 other  [Enter] cancel\n',
+  );
+
+  const answer = (await rl.question('Reason code: ')).trim().toLowerCase();
+  if (!answer) return undefined;
+  return options.find(([key]) => key === answer)?.[1];
+}
+
+function wrapText(value: string, width: number): string[] {
+  const words = value.split(/\s+/);
+  const lines: string[] = [];
+  let current = '';
+  const effective = Math.max(24, width);
+
+  for (const word of words) {
+    if (!current) {
+      current = word;
+    } else if (`${current} ${word}`.length <= effective) {
+      current += ` ${word}`;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 function renderVerifyTable(

@@ -16,6 +16,30 @@ export { rankCandidates } from './pipeline/rank.js';
 export { searchLiterature } from './pipeline/search.js';
 
 export {
+  loadScreeningState,
+  countScreening,
+  importScreeningDecisions,
+  parseScreeningDecisions,
+  detectScreeningFormat,
+  formatScreeningTable,
+  formatScreeningJson,
+  formatScreeningCsv,
+  filterFlagsFor,
+  ScreeningError,
+  type ScreeningState,
+  type ScreeningCounts,
+  type ScreeningSummary,
+  type ScreeningDecisionInput,
+  type ScreeningImportResult,
+  type ScreeningSuggestion,
+  type ScreeningOptions,
+} from './screening/screening.js';
+export {
+  suggestScreening,
+  type ScreeningSuggestionDraft,
+} from './screening/suggest.js';
+
+export {
   parseBrief,
   readBrief,
   briefId,
@@ -48,13 +72,22 @@ export {
   saveBrief,
   finishRun,
   getRun,
+  getLatestRun,
   getPayloads,
   loadRunSources,
   readPayload,
   recomputeCitability,
+  getCurrentScreening,
+  recordScreeningDecision,
+  recordScreeningSuggestion,
+  getLatestSuggestions,
+  runSourceCounts,
+  LATEST_SCHEMA_VERSION,
   type RunRow,
   type PayloadRow,
   type StoredSource,
+  type ScreeningRow,
+  type ScreeningSuggestionRow,
 } from './project/db.js';
 
 export {
