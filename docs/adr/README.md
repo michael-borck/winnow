@@ -22,3 +22,4 @@ consequences.
 | [0014](0014-template-writer-and-checks.md) | Template writer first; deterministic checks before rendering |
 | [0015](0015-stance-and-counter-evidence.md) | Human stance, derived argument map, separate counter-evidence run |
 | [0016](0016-model-writer.md) | Model writer behind the same deterministic checks |
+| [0017](0017-support-check.md) | Support check holds sentences; it never deletes them |

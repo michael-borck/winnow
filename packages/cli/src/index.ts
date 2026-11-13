@@ -5,6 +5,7 @@ import { userInfo } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import {
+  applySupportCheck,
   BriefError,
   buildArgumentBundle,
   buildArgumentMap,
@@ -155,6 +156,8 @@ interface ReviewCliOptions {
   writer?: string;
   model?: string;
   baseUrl?: string;
+  support?: boolean;
+  supportModel?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -181,6 +184,8 @@ interface ArgueCliOptions {
   writer?: string;
   model?: string;
   baseUrl?: string;
+  support?: boolean;
+  supportModel?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -780,6 +785,8 @@ program
   .option('--writer <writer>', 'template or model', 'template')
   .option('--model <name>', 'model name for --writer model')
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
+  .option('--support', 'run a separate support entailment pass')
+  .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -790,7 +797,13 @@ program
       'model',
     ]);
     const modelOptions =
-      writer === 'model' ? modelWriterOptions(options) : undefined;
+      writer === 'model' ? modelEndpointOptions(options) : undefined;
+    const supportModelOptions = options.support
+      ? modelEndpointOptions({
+          model: options.supportModel ?? options.model,
+          baseUrl: options.baseUrl,
+        })
+      : undefined;
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -839,7 +852,20 @@ program
             mode: 'review',
           })
         : generateTemplateDraft(bundle, brief);
-      const checked = checkDraft(bundle, raw);
+      let checked = checkDraft(bundle, raw);
+      if (supportModelOptions) {
+        const outcome = await applySupportCheck(
+          checked,
+          bundle,
+          supportModelOptions,
+        );
+        checked = outcome.draft;
+        if (outcome.failed) {
+          process.stderr.write(
+            `winnow: support check failed for ${outcome.failed} sentence(s)\n`,
+          );
+        }
+      }
       const markdown = renderDraftMarkdown(bundle, checked);
 
       let draftId: string | null = null;
@@ -880,6 +906,8 @@ program
   .option('--writer <writer>', 'template or model', 'template')
   .option('--model <name>', 'model name for --writer model')
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
+  .option('--support', 'run a separate support entailment pass')
+  .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -891,7 +919,13 @@ program
       'model',
     ]);
     const modelOptions =
-      writer === 'model' ? modelWriterOptions(options) : undefined;
+      writer === 'model' ? modelEndpointOptions(options) : undefined;
+    const supportModelOptions = options.support
+      ? modelEndpointOptions({
+          model: options.supportModel ?? options.model,
+          baseUrl: options.baseUrl,
+        })
+      : undefined;
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -950,7 +984,20 @@ program
           })
         : generateArgumentDraft(bundle, thesis, map);
       if (modelOptions) raw.argumentMap = map;
-      const checked = checkDraft(bundle, raw);
+      let checked = checkDraft(bundle, raw);
+      if (supportModelOptions) {
+        const outcome = await applySupportCheck(
+          checked,
+          bundle,
+          supportModelOptions,
+        );
+        checked = outcome.draft;
+        if (outcome.failed) {
+          process.stderr.write(
+            `winnow: support check failed for ${outcome.failed} sentence(s)\n`,
+          );
+        }
+      }
       const markdown = renderDraftMarkdown(bundle, checked);
 
       let draftId: string | null = null;
@@ -1693,15 +1740,19 @@ function trimText(value: string, length: number): string {
 
 function reviewSummary(draft: StructuredDraft, draftId: string | null): string {
   const kept = draft.sentences.filter((item) => item.status === 'kept').length;
+  const marked = draft.sentences.filter(
+    (item) => item.status === 'kept_marked',
+  ).length;
+  const held = draft.sentences.filter((item) => item.status === 'held').length;
   const dropped = draft.sentences.filter(
     (item) => item.status === 'dropped',
   ).length;
-  return `kept ${kept}, dropped ${dropped}, claims ${draft.basis.claims}${
+  return `kept ${kept}, marked ${marked}, held ${held}, dropped ${dropped}, claims ${draft.basis.claims}${
     draftId ? `; draft ${draftId}` : ''
   }\n`;
 }
 
-function modelWriterOptions(options: {
+function modelEndpointOptions(options: {
   model?: string;
   baseUrl?: string;
 }): { baseUrl: string; model: string; apiKey?: string } {

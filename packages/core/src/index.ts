@@ -77,6 +77,8 @@ export {
   type DraftCoverage,
   type DraftCheckResult,
   type DraftSentence,
+  type SupportLabel,
+  type SupportResult,
   type EvidenceClaim,
   type EvidenceSource,
   type EvidenceBundle,
@@ -122,6 +124,11 @@ export {
   parseModelDraft,
   type ModelWriterOptions,
 } from './model/writer.js';
+export {
+  applySupportCheck,
+  buildSupportMessages,
+  type SupportCheckOutcome,
+} from './model/support.js';
 
 export {
   parseBrief,

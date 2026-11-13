@@ -9,6 +9,19 @@ import { firstAuthorSurname, shortHash } from '../text/ids.js';
 
 export type DraftSentenceType = 'evidence' | 'synthesis' | 'coverage' | 'framing';
 export type DraftStatus = 'kept' | 'kept_marked' | 'held' | 'dropped';
+export type SupportLabel =
+  | 'supported'
+  | 'partial'
+  | 'unsupported'
+  | 'contradicted';
+
+export interface SupportResult {
+  label: SupportLabel;
+  confidence?: number;
+  rationale?: string;
+  model: string;
+  method: 'model';
+}
 
 export interface DraftQuote {
   sourceId: string;
@@ -43,6 +56,7 @@ export interface DraftSentence {
   coverage?: DraftCoverage;
   status: DraftStatus;
   checks: DraftCheckResult[];
+  support?: SupportResult;
 }
 
 export interface EvidenceClaim {
@@ -619,16 +633,8 @@ export function checkDraft(
     }
     checks.push(check('5. synthesis shape', synthesisOk, synthesisMessage));
 
-    // 6. Support is a suggestion and is not run without a support model.
-    checks.push({
-      check: '6. support',
-      ok: true,
-      message: 'not run (no support model)',
-    });
-
-    const failed = checks.some(
-      (result) => !result.ok && !result.check.startsWith('6.'),
-    );
+    // 6. Support is a separate model pass, applied later by applySupportCheck.
+    const failed = checks.some((result) => !result.ok);
 
     return {
       ...item,
@@ -644,7 +650,10 @@ export function renderDraftMarkdown(
   bundle: EvidenceBundle,
   draft: StructuredDraft,
 ): string {
-  const kept = draft.sentences.filter((item) => item.status === 'kept');
+  const kept = draft.sentences.filter(
+    (item) => item.status === 'kept' || item.status === 'kept_marked',
+  );
+  const held = draft.sentences.filter((item) => item.status === 'held');
   const dropped = draft.sentences.filter((item) => item.status === 'dropped');
   const sourcesById = new Map(bundle.sources.map((source) => [source.id, source]));
   const cited = new Set<string>();
@@ -657,9 +666,9 @@ export function renderDraftMarkdown(
       : 'Template writer';
 
   lines.push(
-    `*${writer}. ${kept.length} kept, ${dropped.length} dropped. ` +
+    `*${writer}. ${kept.length} kept, ${held.length} held, ${dropped.length} dropped. ` +
       `${bundle.counts.included} included sources, ${bundle.counts.withEvidence} with confirmed evidence, ` +
-      `${bundle.counts.claims} claims. Support check not run.*`,
+      `${bundle.counts.claims} claims. Support check ${draft.sentences.some((item) => item.support) ? 'run' : 'not run'}.*`,
     '',
   );
 
@@ -687,13 +696,29 @@ export function renderDraftMarkdown(
       lines.push(`## ${section}`, '');
     }
     for (const citation of item.citations) cited.add(citation);
-    lines.push(`${renderSentence(item, sourcesById)}`, '');
+    const rendered = renderSentence(item, sourcesById);
+    lines.push(
+      item.status === 'kept_marked' ? `${rendered} [partial support]` : rendered,
+      '',
+    );
   }
 
   if (bundle.unquoted.length) {
     lines.push('## Appendix: unquoted values', '');
     for (const item of bundle.unquoted) {
       lines.push(`- ${item.sourceId} · ${item.field}: ${item.value}`);
+    }
+    lines.push('');
+  }
+
+  if (held.length) {
+    lines.push('## Appendix: held for review', '');
+    for (const item of held) {
+      const label = item.support?.label ?? 'held';
+      const rationale = item.support?.rationale
+        ? ` — ${item.support.rationale}`
+        : '';
+      lines.push(`- ${item.text} — ${label}${rationale}`);
     }
     lines.push('');
   }

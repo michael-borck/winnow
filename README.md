@@ -143,6 +143,7 @@ sentences are listed with the check that failed.
 ```bash
 winnow review . --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --out drafts/review.md
+winnow review . --writer model --model qwen3:8b --support --out drafts/review.md
 winnow review . --format json --out drafts/review.json
 ```
 
@@ -156,6 +157,12 @@ Studio, llama.cpp or a remote provider. The model receives only the evidence
 bundle: no full corpus, no other sources. Malformed output is rejected, and
 every returned sentence still runs through checks 1–5. A non-local base URL
 prints a warning because the evidence bundle leaves the machine.
+
+`--support` adds a second, separate entailment pass. Each evidence sentence is
+checked against its quotes and labelled `supported`, `partial`, `unsupported`
+or `contradicted`. Unsupported and contradicted sentences are held out of the
+draft and listed for review; partial support is marked inline. A failed support
+call leaves the sentence in place and reports that the check did not run.
 
 ## Stance and argument
 
@@ -201,8 +208,8 @@ winnow counter . --topic "retrieval augmented generation" \
   suggestions, configurable fields and CSV/JSON round-trip. Only confirmed
   includes are extracted.
 - `winnow review` — evidence bundle, template or local-model writer,
-  deterministic checks 1–5, kept/dropped report, references and an evidence
-  appendix.
+  deterministic checks 1–5, optional support entailment pass, kept/marked/held/
+  dropped report, references and an evidence appendix.
 - `winnow stance` — human stance labels relative to a thesis, separate heuristic
   suggestions, and CSV/JSON import-export.
 - `winnow argue` — argument map and draft with supporting, opposing, mixed and
@@ -215,8 +222,8 @@ winnow counter . --topic "retrieval augmented generation" \
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
 - Unit and integration tests across briefs, screening, extraction, stance,
-  drafting, argument maps, model output validation, citability, dedupe, ranking,
-  formatting, project lifecycle, database updates and replay.
+  drafting, argument maps, model output validation, support triage, citability,
+  dedupe, ranking, formatting, project lifecycle, database updates and replay.
 
 Not yet: citeproc-based citation styles, citation chasing for counter-evidence,
 link probing during search (use `--check-links`), full replay that re-normalises

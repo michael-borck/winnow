@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`; template and local-model writers
+**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`; template and local-model writers, optional support pass
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -183,10 +183,16 @@ failed.
 The writer can be the deterministic template or a local OpenAI-compatible model.
 The model receives only the evidence bundle and writes to a strict JSON shape.
 Malformed output is rejected, not repaired, and every resulting sentence still
-runs through checks 1–5. Checks 1–5 run before rendering; check 6 (support
-entailment) is reported as not run because no support model is configured. The
-draft header states the writer or model name, the counts of kept and dropped
-sentences, and the counts of included sources, sources with evidence and claims.
+runs through checks 1–5.
+
+`--support` adds a separate entailment pass. Each evidence sentence is checked
+against its quotes and labelled `supported`, `partial`, `unsupported` or
+`contradicted`. Unsupported and contradicted sentences are held out of the
+rendered draft and listed for review; partial support is marked. A failed
+support call leaves the sentence in place and records that the check did not run.
+Checks 1–5 always run before rendering. The draft header states the writer or
+model name, the counts of kept, marked, held and dropped sentences, and the
+counts of included sources, sources with evidence and claims.
 
 ### 6.5 Argue
 
@@ -548,11 +554,12 @@ suggestion.
    citations.
 5. **Synthesis shape.** A `synthesis` sentence that states disagreement cites
    claims with differing confirmed or suggested stances.
-6. **Support.** A separate model checks whether the quoted spans entail the
-   sentence. It returns `supported`, `partial`, `unsupported` or `contradicted`.
-   Where possible it is a different model from the drafting model. The result
-   is stored as a suggestion with the model name and prompt version. It is not
-   a gate, and it has no pass threshold in v0.3.
+6. **Support.** With `--support`, a separate model checks whether the quoted
+   spans entail the sentence. It returns `supported`, `partial`, `unsupported`
+   or `contradicted`. The result is stored as a suggestion with the model name.
+   It is not a gate: unsupported and contradicted sentences are held, partial
+   sentences are marked, and a failed call leaves the sentence in place and says
+   the check did not run.
 
 ### 9.5 Outcomes
 
@@ -701,6 +708,8 @@ winnow review [project]                 Grounded review draft
   --writer <template|model>             Default: template
   --model <name>                        Model for --writer model
   --base-url <url>                      OpenAI-compatible endpoint
+  --support                             Separate support entailment pass
+  --support-model <name>                Model for the support pass
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
@@ -712,6 +721,8 @@ winnow argue [project]                  Argument map and draft
   --writer <template|model>             Default: template
   --model <name>                        Model for --writer model
   --base-url <url>                      OpenAI-compatible endpoint
+  --support                             Separate support entailment pass
+  --support-model <name>                Model for the support pass
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
@@ -1015,6 +1026,12 @@ planted-fabrication set.
     checks 1–5 before rendering.
 16. The draft stores the writer and model name; the template writer remains the
     default.
+17. `--support` sends only the sentence and its quotes to the support model and
+    stores `supported`, `partial`, `unsupported` or `contradicted` per sentence.
+18. `unsupported` and `contradicted` sentences are held and listed for review;
+    `partial` sentences are marked. A failed support call leaves the sentence in
+    place and records that the check did not run.
+19. The report and draft header count kept, marked, held and dropped sentences.
 
 ## 18. Open questions
 
@@ -1065,4 +1082,4 @@ behaviour changes.
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
-| v0.3 (partial) | 2026-11-11 | Evidence bundle, template review writer, deterministic checks 1–5, kept/dropped report, stored structured draft; human-confirmed stance, argument maps, a separate counter-evidence search run, and a local-model writer behind the same checks |
+| v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, kept/marked/held/dropped report, stored structured draft; human-confirmed stance, argument maps, and a separate counter-evidence search run |
