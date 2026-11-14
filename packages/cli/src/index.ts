@@ -19,6 +19,7 @@ import {
   detectStanceFormat,
   findProject,
   finishRun,
+  dropHeldSentence,
   formatBibtex,
   formatBriefJson,
   formatBriefSummary,
@@ -28,6 +29,8 @@ import {
   formatEvidenceCsv,
   formatEvidenceJson,
   formatEvidenceTable,
+  formatQueueJson,
+  formatQueueTable,
   formatScreeningCsv,
   formatScreeningJson,
   formatScreeningTable,
@@ -39,13 +42,17 @@ import {
   generateArgumentDraft,
   generateModelDraft,
   generateTemplateDraft,
+  getDraft,
+  getLatestDraft,
   getLatestRun,
   hashSnapshot,
+  heldSentences,
   importExtractionValues,
   importScreeningDecisions,
   importStances,
   initProject,
   isCitable,
+  loadDraftSnapshot,
   loadExtractionState,
   loadScreeningState,
   loadStanceState,
@@ -63,6 +70,7 @@ import {
   recordStanceSuggestionFor,
   renderDraftMarkdown,
   replayRun,
+  restoreHeldSentence,
   saveBrief,
   saveDraft,
   savePayload,
@@ -73,12 +81,13 @@ import {
   suggestScreening,
   suggestStance,
   verifyDoi,
+  CitationError,
   DraftError,
   ExtractionError,
   ModelError,
+  QueueError,
   ScreeningError,
   StanceError,
-  CitationError,
   type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
@@ -204,6 +213,17 @@ interface CounterCliOptions {
   format: string;
   out?: string;
   mailto?: string;
+}
+
+interface QueueCliOptions {
+  draft?: string;
+  run?: string;
+  restore?: string;
+  drop?: string;
+  reviewer?: string;
+  rationale?: string;
+  format: string;
+  out?: string;
 }
 
 const program = new Command();
@@ -872,6 +892,8 @@ program
           );
         }
       }
+      checked.fields = fields;
+      checked.citationStyle = style;
       const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
@@ -883,6 +905,7 @@ program
           model: modelOptions?.model,
           markdown,
           structured: checked,
+          bundle,
           basis: checked.basis,
         });
         draftId = row.id;
@@ -1007,6 +1030,8 @@ program
           );
         }
       }
+      checked.fields = fields;
+      checked.citationStyle = style;
       const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
@@ -1018,6 +1043,7 @@ program
           model: modelOptions?.model,
           markdown,
           structured: checked,
+          bundle,
           basis: checked.basis,
         });
         draftId = row.id;
@@ -1159,6 +1185,74 @@ program
       else process.exitCode = 0;
     } catch (error) {
       if (error instanceof StanceError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('queue [project]')
+  .description('List held sentences and restore or accept them')
+  .option('--draft <id>', 'draft id (default: latest)')
+  .option('--run <run-id>', 'latest draft for a run')
+  .option('--restore <sentence-id>', 'restore a held sentence')
+  .option('--drop <sentence-id>', 'accept the hold')
+  .option('--reviewer <name>', 'reviewer for the override')
+  .option('--rationale <text>', 'override rationale')
+  .option('--format <format>', 'table or json', 'table')
+  .option('--out <file>', 'write output to a file')
+  .action(async (projectArg: string | undefined, options: QueueCliOptions) => {
+    const format = parseFormat(options.format, ['table', 'json']);
+    if (options.restore && options.drop) {
+      throw new UsageError('Choose --restore or --drop, not both');
+    }
+
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      let row = options.draft
+        ? getDraft(project.db, options.draft)
+        : getLatestDraft(project.db, options.run);
+      if (!row) {
+        throw new UsageError('No draft found. Run `winnow review` first.');
+      }
+
+      const reviewer = options.reviewer?.trim() || userInfo().username;
+
+      if (options.restore || options.drop) {
+        const sentenceId = options.restore ?? options.drop!;
+        const result = options.restore
+          ? restoreHeldSentence(project.db, {
+              draftId: row.id,
+              sentenceId,
+              reviewer,
+              rationale: options.rationale,
+            })
+          : dropHeldSentence(project.db, {
+              draftId: row.id,
+              sentenceId,
+              reviewer,
+              rationale: options.rationale,
+            });
+        process.stderr.write(
+          `${options.restore ? 'restored' : 'dropped'} ${sentenceId}; new draft ${result.draft.id}\n`,
+        );
+        row = result.draft;
+      }
+
+      const { draft } = loadDraftSnapshot(row);
+      const held = heldSentences(draft);
+      const output =
+        format === 'json'
+          ? formatQueueJson(row, draft, held)
+          : formatQueueTable(row, draft, held);
+      await emit(output, options.out);
+      process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof QueueError) throw new UsageError(error.message);
+      if (error instanceof CitationError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();

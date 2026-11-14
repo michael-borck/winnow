@@ -42,6 +42,7 @@ describe('draft rendering with a citation style', () => {
     const bundle: EvidenceBundle = {
       runId: 'run-citation-1',
       query: 'retrieval',
+      fields: ['finding'],
       counts: { included: 1, withEvidence: 1, claims: 1 },
       claims: [
         {
@@ -80,6 +81,7 @@ describe('draft rendering with a citation style', () => {
       runId: 'run-citation-1',
       mode: 'review',
       writer: 'template',
+      fields: ['finding'],
       title: 'A review',
       sentences: [
         {

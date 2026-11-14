@@ -28,6 +28,13 @@ export interface SupportResult {
   method: 'model';
 }
 
+export interface SentenceOverride {
+  action: 'restored' | 'dropped';
+  reviewer: string;
+  rationale?: string;
+  at: string;
+}
+
 export interface DraftQuote {
   sourceId: string;
   quote: string;
@@ -62,6 +69,7 @@ export interface DraftSentence {
   status: DraftStatus;
   checks: DraftCheckResult[];
   support?: SupportResult;
+  override?: SentenceOverride;
 }
 
 export interface EvidenceClaim {
@@ -123,6 +131,7 @@ export interface ArgumentMap {
 export interface EvidenceBundle {
   runId: string;
   query: string;
+  fields: string[];
   brief?: Brief;
   claims: EvidenceClaim[];
   sources: EvidenceSource[];
@@ -140,6 +149,8 @@ export interface StructuredDraft {
   mode: 'review' | 'argue';
   writer: 'template' | 'model';
   model?: string;
+  fields: string[];
+  citationStyle?: CitationStyle;
   title: string;
   sentences: DraftSentence[];
   argumentMap?: ArgumentMap;
@@ -220,6 +231,7 @@ export function buildEvidenceBundle(
   return {
     runId,
     query: state.query,
+    fields,
     ...(brief ? { brief } : {}),
     claims,
     sources: sources.sort((a, b) => a.rank - b.rank),
@@ -318,6 +330,7 @@ export function generateTemplateDraft(
     runId: bundle.runId,
     mode: 'review',
     writer: 'template',
+    fields: bundle.fields,
     title,
     sentences,
     createdAt: new Date().toISOString(),
@@ -516,6 +529,7 @@ export function generateArgumentDraft(
     runId: bundle.runId,
     mode: 'argue',
     writer: 'template',
+    fields: bundle.fields,
     title: `Argument: ${thesis}`,
     sentences,
     argumentMap: map,
@@ -705,10 +719,13 @@ export function renderDraftMarkdown(
     }
     for (const citation of item.citations) cited.add(citation);
     const rendered = renderSentence(item, sourcesById, style);
-    lines.push(
-      item.status === 'kept_marked' ? `${rendered} [partial support]` : rendered,
-      '',
-    );
+    const marker =
+      item.override?.action === 'restored'
+        ? ` [restored by ${item.override.reviewer}]`
+        : item.status === 'kept_marked'
+          ? ' [partial support]'
+          : '';
+    lines.push(`${rendered}${marker}`, '');
   }
 
   if (bundle.unquoted.length) {
@@ -722,11 +739,15 @@ export function renderDraftMarkdown(
   if (held.length) {
     lines.push('## Appendix: held for review', '');
     for (const item of held) {
-      const label = item.support?.label ?? 'held';
-      const rationale = item.support?.rationale
-        ? ` — ${item.support.rationale}`
-        : '';
-      lines.push(`- ${item.text} — ${label}${rationale}`);
+      const label =
+        item.override?.action === 'dropped'
+          ? 'dropped by reviewer'
+          : item.support?.label ?? 'held';
+      const rationale =
+        item.override?.rationale ?? item.support?.rationale;
+      lines.push(
+        `- ${item.text} — ${label}${rationale ? ` — ${rationale}` : ''}`,
+      );
     }
     lines.push('');
   }

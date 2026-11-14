@@ -12,12 +12,12 @@ into a grounded review draft with a citation on every claim.
 The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
-`screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify` and
-`replay`; template or local-model writers, support triage, and citeproc-based
-APA/Vancouver/Harvard styles are available. Citation chasing, custom CSL files,
-the review queue and the web/desktop surfaces are next. v1 targets structured
-narrative and scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md)
-and [docs/reviews](docs/reviews/README.md).
+`screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`
+and `replay`; template or local-model writers, support triage, citeproc styles
+and a held-sentence review queue are available. Citation chasing, custom CSL
+files and the web/desktop surfaces are next. v1 targets structured narrative and
+scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
+[docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
 
@@ -171,6 +171,19 @@ call leaves the sentence in place and reports that the check did not run.
 chapter, report, thesis and conference types map correctly. Custom CSL files are
 the next step.
 
+## Review queue
+
+Held sentences are not deleted. `winnow queue` lists them with the support
+rationale; a human can restore one or accept the hold. A restore creates a new
+draft revision, so the earlier draft and the override stay in the history.
+
+```bash
+winnow queue .
+winnow queue . --restore <sentence-id> --rationale "Relevant, but weaker than claimed"
+winnow queue . --drop <sentence-id>
+winnow queue . --format json
+```
+
 ## Stance and argument
 
 Stance is relative to a thesis and human-confirmed. The tool can suggest a
@@ -224,20 +237,21 @@ winnow counter . --topic "retrieval augmented generation" \
   available here too.
 - `winnow counter` — a separate critical-terms search run that seeds
   counter-evidence candidates and optional stance suggestions.
+- `winnow queue` — lists held sentences and restores or accepts them, creating a
+  new draft revision with a recorded reviewer and rationale.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
 - Unit and integration tests across briefs, screening, extraction, stance,
   drafting, argument maps, model output validation, support triage, citation
-  styles, citability, dedupe, ranking, formatting, project lifecycle, database
-  updates and replay.
+  styles, review queue, citability, dedupe, ranking, formatting, project
+  lifecycle, database updates and replay.
 
-Not yet: citation chasing for counter-evidence, custom CSL file styles, a review
-queue to restore held sentences, link probing during search (use
-`--check-links`), full replay that re-normalises stored payloads (current replay
-verifies payload hashes and re-derives the stored snapshot), the local web UI
-and the desktop shell.
+Not yet: citation chasing for counter-evidence, custom CSL file styles, link
+probing during search (use `--check-links`), full replay that re-normalises
+stored payloads (current replay verifies payload hashes and re-derives the
+stored snapshot), the local web UI and the desktop shell.
 
 ## Why another literature tool
 

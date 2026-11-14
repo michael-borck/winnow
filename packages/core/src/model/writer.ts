@@ -147,6 +147,7 @@ export function parseModelDraft(
     mode: options.mode,
     writer: 'model',
     model: options.model,
+    fields: bundle.fields,
     title,
     sentences,
     createdAt: new Date().toISOString(),

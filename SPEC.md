@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify`, `replay`; template and local-model writers, optional support pass, citeproc citation styles
+**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`; template and local-model writers, optional support pass, citeproc citation styles, held-sentence review queue
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -576,6 +576,11 @@ Every outcome is logged, and every non-dropped outcome is reversible by a human.
 A human edit re-runs checks 1–5 on the edited sentences. Check 6 runs on
 request.
 
+Held sentences are not deleted. `winnow queue` lists them with the support
+rationale. A restore creates a new draft revision with a reviewer and rationale,
+marks the sentence `kept_marked`, and records an override; accepting the hold
+records a dropped override without removing the sentence.
+
 The draft header states the drafting model and digest, the text basis, and the
 counts of kept, marked, held and dropped sentences. The evidence appendix maps
 every citation to its quote and source.
@@ -631,7 +636,7 @@ migration policy: a newer database refuses to open in an older binary.
 | `Stance` | id, source_id, `target_brief_id`, label, quote, rationale, suggested, confirmed, confirmed_by |
 | `Weigh` | source_id, study_design, quality_flags_json, citation_percentile, computed_at |
 | `Claim` | id, draft_id, sentence_index, text, sentence_type, source_ids_json, quotes_json, status (`kept`/`kept_marked`/`held`/`dropped`), check_json |
-| `Draft` | id, run_id, mode, writer, model, markdown, structured_json, basis_json, created_at |
+| `Draft` | id, run_id, parent_id, mode, writer, model, markdown, structured_json, bundle_json, basis_json, created_at |
 | `ArgumentMap` | Stored inside `Draft.structured_json` as `argumentMap` for v0.3; a separate table can follow if maps need independent lineage |
 | `ModelArtifact` | name, digest, quantization, source, verified_at |
 | `Consent` | project_id, provider, granted_by, granted_at, payload_preview_sha256, revoked_at |
@@ -736,6 +741,15 @@ winnow counter [project]                Separate counter-evidence search run
   --limit <n>                           Max selected sources
   --provider <list>                     Providers to query
   --format <table|json|csv>             Default: table
+  --out <file>
+winnow queue [project]                  List held sentences and override them
+  --draft <id>                          Default: latest draft
+  --run <run-id>                        Latest draft for a run
+  --restore <sentence-id>               Restore a held sentence
+  --drop <sentence-id>                  Accept the hold
+  --reviewer <name>
+  --rationale <text>
+  --format <table|json>                 Default: table
   --out <file>
 winnow replay <run-id> [--project <p>]  Re-derive deterministic stages from payloads
 winnow rerun <run-id> --live [--diff] [--project <p>]
@@ -1039,6 +1053,11 @@ planted-fabrication set.
     in APA, Vancouver or Harvard without changing the underlying source IDs.
 21. If citation rendering fails, the draft falls back to visible source IDs and
     reports the failure.
+22. `winnow queue` lists held sentences with their support rationale.
+23. Restoring a held sentence creates a new draft revision with a parent link,
+    reviewer and rationale; the sentence is marked `kept_marked` and the
+    override is visible in the rendered draft.
+24. Accepting a hold records a dropped override without deleting the sentence.
 
 ## 18. Open questions
 
@@ -1089,4 +1108,4 @@ behaviour changes.
 | v1.1 | 2026-11-11 | Audit incorporated: orthogonal verification and citability, sentence taxonomy and post-generation checks, narrative/scoping scope, merge/rank/selection and Weigh, payload storage and replay, expanded data model, privacy threat model, inconsistency fixes |
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
-| v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, kept/marked/held/dropped report, stored structured draft; human-confirmed stance, argument maps, and a separate counter-evidence search run |
+| v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, held-sentence review queue with draft revisions; human-confirmed stance, argument maps, and a separate counter-evidence search run |

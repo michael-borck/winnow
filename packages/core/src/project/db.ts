@@ -21,7 +21,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 6;
+export const LATEST_SCHEMA_VERSION = 7;
 
 export interface RunRow {
   id: string;
@@ -113,11 +113,13 @@ export interface ExtractionSuggestionRow {
 export interface DraftRow {
   id: string;
   run_id: string | null;
+  parent_id: string | null;
   mode: string;
   writer: string;
   model: string | null;
   markdown: string;
   structured_json: string;
+  bundle_json: string | null;
   basis_json: string;
   created_at: string;
 }
@@ -337,11 +339,13 @@ export function migrate(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS drafts (
       id TEXT PRIMARY KEY,
       run_id TEXT,
+      parent_id TEXT,
       mode TEXT NOT NULL,
       writer TEXT NOT NULL,
       model TEXT,
       markdown TEXT NOT NULL,
       structured_json TEXT NOT NULL,
+      bundle_json TEXT,
       basis_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL
@@ -408,6 +412,8 @@ export function migrate(db: DatabaseSync): void {
     addColumnIfMissing(db, 'screening', 'reason_code', 'TEXT');
     addColumnIfMissing(db, 'screening', 'tags_json', 'TEXT');
     addColumnIfMissing(db, 'drafts', 'model', 'TEXT');
+    addColumnIfMissing(db, 'drafts', 'parent_id', 'TEXT');
+    addColumnIfMissing(db, 'drafts', 'bundle_json', 'TEXT');
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
       LATEST_SCHEMA_VERSION,
       new Date().toISOString(),
@@ -1070,43 +1076,65 @@ export function saveDraft(
   db: DatabaseSync,
   input: {
     runId?: string | null;
+    parentId?: string | null;
     mode: string;
     writer: string;
     model?: string;
     markdown: string;
     structured: unknown;
+    bundle?: unknown;
     basis: unknown;
   },
 ): DraftRow {
   const row: DraftRow = {
     id: `draft-${randomUUID().slice(0, 8)}`,
     run_id: input.runId ?? null,
+    parent_id: input.parentId ?? null,
     mode: input.mode,
     writer: input.writer,
     model: input.model ?? null,
     markdown: input.markdown,
     structured_json: JSON.stringify(input.structured),
+    bundle_json: input.bundle === undefined ? null : JSON.stringify(input.bundle),
     basis_json: JSON.stringify(input.basis),
     created_at: new Date().toISOString(),
   };
 
   db.prepare(
     `INSERT INTO drafts
-     (id, run_id, mode, writer, model, markdown, structured_json, basis_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, run_id, parent_id, mode, writer, model, markdown, structured_json, bundle_json, basis_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     row.id,
     row.run_id,
+    row.parent_id,
     row.mode,
     row.writer,
     row.model,
     row.markdown,
     row.structured_json,
+    row.bundle_json,
     row.basis_json,
     row.created_at,
   );
 
   return row;
+}
+
+export function getLatestDraft(
+  db: DatabaseSync,
+  runId?: string,
+): DraftRow | null {
+  const row = runId
+    ? (db
+        .prepare(
+          'SELECT * FROM drafts WHERE run_id = ? ORDER BY created_at DESC LIMIT 1',
+        )
+        .get(runId) as DraftRow | undefined)
+    : (db
+        .prepare('SELECT * FROM drafts ORDER BY created_at DESC LIMIT 1')
+        .get() as DraftRow | undefined);
+  return row ?? null;
 }
 
 export function getDraft(db: DatabaseSync, id: string): DraftRow | null {

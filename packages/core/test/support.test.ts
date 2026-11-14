@@ -21,6 +21,7 @@ function bundle(): EvidenceBundle {
   return {
     runId: 'run-support-1',
     query: 'retrieval',
+    fields: ['finding'],
     counts: { included: 1, withEvidence: 1, claims: 1 },
     claims: [
       {

@@ -79,6 +79,7 @@ export {
   type DraftSentence,
   type SupportLabel,
   type SupportResult,
+  type SentenceOverride,
   type EvidenceClaim,
   type EvidenceSource,
   type EvidenceBundle,
@@ -131,6 +132,17 @@ export {
 } from './model/support.js';
 
 export {
+  loadDraftSnapshot,
+  heldSentences,
+  restoreHeldSentence,
+  dropHeldSentence,
+  formatQueueTable,
+  formatQueueJson,
+  QueueError,
+  type RestoreResult,
+} from './queue/queue.js';
+
+export {
   parseBrief,
   readBrief,
   briefId,
@@ -178,6 +190,7 @@ export {
   getLatestExtractionSuggestions,
   saveDraft,
   getDraft,
+  getLatestDraft,
   recordStance,
   recordStanceSuggestion,
   getCurrentStances,

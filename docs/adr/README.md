@@ -24,3 +24,4 @@ consequences.
 | [0016](0016-model-writer.md) | Model writer behind the same deterministic checks |
 | [0017](0017-support-check.md) | Support check holds sentences; it never deletes them |
 | [0018](0018-citeproc-styles.md) | Citeproc renders citations; source IDs remain the contract |
+| [0019](0019-held-sentence-queue.md) | Held sentences are a queue; restores create a draft revision |

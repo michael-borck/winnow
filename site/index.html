@@ -199,6 +199,7 @@
       <span>Template + model writer</span>
       <span>Support triage</span>
       <span>Citeproc styles</span>
+      <span>Review queue</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -269,9 +270,11 @@
             model that sees only the evidence bundle; malformed output is
             rejected and every sentence still runs through the same checks. A
             separate support pass can mark partial statements and hold
-            unsupported ones for review. Citations and references render through
-            citeproc in APA, Vancouver or Harvard. Everything lives in one
-            SQLite database, with raw provider payloads kept for replay.
+            unsupported ones for review. A held-sentence queue restores or
+            accepts each hold as a new draft revision, so the audit trail stays
+            intact. Citations and references render through citeproc in APA,
+            Vancouver or Harvard. Everything lives in one SQLite database, with
+            raw provider payloads kept for replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -307,6 +310,8 @@ winnow review . --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --support --out drafts/review.md
 winnow review . --style vancouver --out drafts/review.md
+winnow queue .
+winnow queue . --restore &lt;sentence-id&gt; --rationale "Relevant, but weaker than claimed"
 
 <span class="comment"># stance, argument map, counter-evidence pass</span>
 winnow stance . --thesis "Retrieval improves accuracy." --suggest
