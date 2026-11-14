@@ -9,6 +9,7 @@ import {
   type EvidenceRow,
   type HeldSentence,
   type QueueResponse,
+  type ReviewResponse,
   type SourceItem,
   type SourcesResponse,
   type StateResponse,
@@ -379,6 +380,10 @@ function DraftsTab({ runId }: { runId: string }) {
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<DraftDetail | null>(null);
+  const [parent, setParent] = useState<DraftDetail | null>(null);
+  const [compare, setCompare] = useState(false);
+  const [style, setStyle] = useState('apa');
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -400,6 +405,8 @@ function DraftsTab({ runId }: { runId: string }) {
   }, [runId]);
 
   useEffect(() => {
+    setCompare(false);
+    setParent(null);
     if (!selected) {
       setDetail(null);
       return;
@@ -417,37 +424,116 @@ function DraftsTab({ runId }: { runId: string }) {
     };
   }, [selected]);
 
-  if (error) return <p className="error">{error}</p>;
-  if (!drafts.length) return <p>No drafts yet.</p>;
+  async function generate(): Promise<void> {
+    setGenerating(true);
+    setError(null);
+    try {
+      const result = await apiPost<ReviewResponse>('/api/review', {
+        runId,
+        style,
+      });
+      const list = await apiGet<{ drafts: DraftSummary[] }>(
+        `/api/drafts?run=${encodeURIComponent(runId)}`,
+      );
+      setDrafts(list.drafts);
+      setSelected(result.draftId);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function toggleCompare(): Promise<void> {
+    if (!detail?.parentId) return;
+    if (compare) {
+      setCompare(false);
+      return;
+    }
+    try {
+      if (!parent || parent.id !== detail.parentId) {
+        setParent(
+          await apiGet<DraftDetail>(
+            `/api/drafts/${encodeURIComponent(detail.parentId)}`,
+          ),
+        );
+      }
+      setCompare(true);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
 
   return (
-    <div className="draft-layout">
-      <aside className="draft-list">
-        {drafts.map((draft) => (
-          <button
-            key={draft.id}
-            className={draft.id === selected ? 'draft-item active' : 'draft-item'}
-            onClick={() => setSelected(draft.id)}
-          >
-            <strong>{draft.mode}</strong>
-            <span>{draft.writer}{draft.model ? ` · ${draft.model}` : ''}</span>
-            <small>{new Date(draft.createdAt).toLocaleString()}</small>
-          </button>
-        ))}
-      </aside>
-      <section className="draft-preview">
-        {detail ? (
-          <>
-            <div className="draft-meta">
-              <span>{detail.id}</span>
-              {detail.parentId ? <span>parent: {detail.parentId}</span> : null}
-            </div>
-            <pre>{detail.markdown}</pre>
-          </>
-        ) : (
-          <p>Select a draft.</p>
-        )}
-      </section>
+    <div>
+      <div className="draft-toolbar">
+        <button onClick={() => void generate()} disabled={generating}>
+          {generating ? 'Generating…' : 'Generate template review'}
+        </button>
+        <label>
+          Style
+          <select value={style} onChange={(event) => setStyle(event.target.value)}>
+            <option value="apa">APA</option>
+            <option value="vancouver">Vancouver</option>
+            <option value="harvard">Harvard</option>
+          </select>
+        </label>
+        {error ? <span className="error">{error}</span> : null}
+      </div>
+
+      {!drafts.length ? (
+        <p>No drafts yet. Generate one above.</p>
+      ) : (
+        <div className="draft-layout">
+          <aside className="draft-list">
+            {drafts.map((draft) => (
+              <button
+                key={draft.id}
+                className={draft.id === selected ? 'draft-item active' : 'draft-item'}
+                onClick={() => setSelected(draft.id)}
+              >
+                <strong>{draft.mode}</strong>
+                <span>
+                  {draft.writer}
+                  {draft.model ? ` · ${draft.model}` : ''}
+                </span>
+                <small>{new Date(draft.createdAt).toLocaleString()}</small>
+              </button>
+            ))}
+          </aside>
+          <section className="draft-preview">
+            {detail ? (
+              <>
+                <div className="draft-meta">
+                  <span>{detail.id}</span>
+                  {detail.parentId ? <span>parent: {detail.parentId}</span> : null}
+                  {detail.parentId ? (
+                    <button className="ghost" onClick={() => void toggleCompare()}>
+                      {compare ? 'Hide parent' : 'Compare with parent'}
+                    </button>
+                  ) : null}
+                </div>
+                {compare && parent ? (
+                  <div className="compare">
+                    <div>
+                      <h4>Parent {parent.id}</h4>
+                      <pre>{parent.markdown}</pre>
+                    </div>
+                    <div>
+                      <h4>Current {detail.id}</h4>
+                      <pre>{detail.markdown}</pre>
+                    </div>
+                  </div>
+                ) : (
+                  <pre>{detail.markdown}</pre>
+                )}
+              </>
+            ) : (
+              <p>Select a draft.</p>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

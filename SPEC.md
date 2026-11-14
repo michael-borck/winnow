@@ -947,9 +947,10 @@ drafts and the hold queue. State-changing requests require a per-session token
 fetched from `/api/session`.
 
 The UI has four tabs: Sources (screen with include/maybe/exclude and priority),
-Evidence (confirmed values and suggestions), Drafts (Markdown preview and
-revision lineage), and Queue (restore or accept holds). Review generation stays
-in the CLI for now.
+Evidence (confirmed values and suggestions), Drafts (generate a template review,
+preview Markdown and compare a revision with its parent), and Queue (restore or
+accept holds). Model writing, custom CSL files and argument drafts stay in the
+CLI for now.
 
 ```bash
 npm run build
@@ -1098,7 +1099,8 @@ planted-fabrication set.
 27. The web server binds `127.0.0.1`, serves the built web app, and requires the
     session token for state-changing requests.
 28. The web UI can list sources, record screening decisions, show evidence and
-    drafts, and restore or accept held sentences.
+    drafts, restore or accept held sentences, generate a template review, and
+    compare a draft revision with its parent.
 
 ## 18. Open questions
 
@@ -1150,4 +1152,4 @@ behaviour changes.
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
 | v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, held-sentence review queue with draft revisions; human-confirmed stance, argument maps, and a separate counter-evidence search run |
-| v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue |
+| v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue; template review generation and parent/child draft comparison in the UI |

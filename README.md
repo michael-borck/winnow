@@ -207,6 +207,8 @@ npm run dev:web
 ```
 
 Review generation stays on the CLI for now; the UI is for reading and triage.
+The Drafts tab can generate a template review for the selected run and compare a
+revision with its parent side by side.
 
 ## Stance and argument
 
@@ -280,7 +282,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
-  with a session token for writes.
+  with a session token for writes. The Drafts tab can generate a template review
+  and compare a revision with its parent.
 - Unit and integration tests across briefs, screening, extraction, stance,
   drafting, argument maps, model output validation, support triage, citation
   styles, review queue, citation chasing, citability, dedupe, ranking,

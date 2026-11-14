@@ -102,6 +102,12 @@ export interface QueueResponse {
   held: HeldSentence[];
 }
 
+export interface ReviewResponse {
+  draftId: string;
+  kept: number;
+  dropped: number;
+}
+
 let sessionToken = '';
 
 export async function initSession(): Promise<void> {

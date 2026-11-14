@@ -5,8 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_FIELDS,
+  buildEvidenceBundle,
+  checkDraft,
+  CitationError,
   dropHeldSentence,
   findProject,
+  generateTemplateDraft,
   getDraft,
   getLatestDraft,
   getRun,
@@ -16,9 +20,12 @@ import {
   loadDraftSnapshot,
   loadExtractionState,
   loadScreeningState,
+  normaliseStyle,
   openProject,
   recordScreeningDecision,
+  renderDraftMarkdown,
   restoreHeldSentence,
+  saveDraft,
   type ScreeningDecision,
   type ScreeningReasonCode,
   type ScreeningRelevance,
@@ -182,6 +189,73 @@ app.get('/api/evidence', (req, res) => {
     counts: summary.counts,
     rows: summary.rows,
   });
+});
+
+app.post('/api/review', (req, res) => {
+  const { runId, fields, style } = req.body as {
+    runId?: string;
+    fields?: unknown;
+    style?: string;
+  };
+  if (!runId) {
+    res.status(400).json({ error: 'runId is required' });
+    return;
+  }
+  const run = getRun(project.db, runId);
+  if (!run) {
+    res.status(404).json({ error: 'Run not found' });
+    return;
+  }
+
+  const fieldList =
+    Array.isArray(fields) && fields.length
+      ? fields.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+      : DEFAULT_FIELDS;
+  let styleName: string;
+  try {
+    styleName = normaliseStyle(style ?? 'apa');
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+
+  try {
+    const bundle = buildEvidenceBundle(project.db, runId, fieldList);
+    if (!bundle.claims.length) {
+      res.status(409).json({
+        error: 'No confirmed evidence with quotes. Run extraction first.',
+      });
+      return;
+    }
+    const checked = checkDraft(bundle, generateTemplateDraft(bundle));
+    checked.fields = fieldList;
+    checked.citationStyle = styleName;
+    const markdown = renderDraftMarkdown(bundle, checked, styleName);
+    const row = saveDraft(project.db, {
+      runId,
+      mode: checked.mode,
+      writer: checked.writer,
+      markdown,
+      structured: checked,
+      bundle,
+      basis: checked.basis,
+    });
+    res.json({
+      draftId: row.id,
+      kept: checked.sentences.filter((item) => item.status === 'kept').length,
+      dropped: checked.sentences.filter((item) => item.status === 'dropped').length,
+    });
+  } catch (error) {
+    if (error instanceof CitationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(409).json({
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 app.get('/api/drafts', (req, res) => {
