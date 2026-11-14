@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import {
   apiGet,
   apiPost,
@@ -383,6 +383,13 @@ function DraftsTab({ runId }: { runId: string }) {
   const [parent, setParent] = useState<DraftDetail | null>(null);
   const [compare, setCompare] = useState(false);
   const [style, setStyle] = useState('apa');
+  const [writer, setWriter] = useState('template');
+  const [model, setModel] = useState('');
+  const [baseUrl, setBaseUrl] = useState('http://localhost:11434/v1');
+  const [support, setSupport] = useState(false);
+  const [cslXml, setCslXml] = useState<string | null>(null);
+  const [cslName, setCslName] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -425,23 +432,44 @@ function DraftsTab({ runId }: { runId: string }) {
   }, [selected]);
 
   async function generate(): Promise<void> {
+    if (writer === 'model' && !model.trim()) {
+      setError('Model name is required for the model writer');
+      return;
+    }
     setGenerating(true);
     setError(null);
+    setWarning(null);
     try {
       const result = await apiPost<ReviewResponse>('/api/review', {
         runId,
         style,
+        writer,
+        ...(writer === 'model' ? { model: model.trim(), baseUrl } : {}),
+        support: writer === 'model' && support,
+        ...(cslXml ? { csl: cslXml } : {}),
       });
       const list = await apiGet<{ drafts: DraftSummary[] }>(
         `/api/drafts?run=${encodeURIComponent(runId)}`,
       );
       setDrafts(list.drafts);
       setSelected(result.draftId);
+      if (result.warning) setWarning(result.warning);
     } catch (err) {
       setError(errorText(err));
     } finally {
       setGenerating(false);
     }
+  }
+
+  async function loadCsl(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setCslXml(null);
+      setCslName(null);
+      return;
+    }
+    setCslXml(await file.text());
+    setCslName(file.name);
   }
 
   async function toggleCompare(): Promise<void> {
@@ -467,19 +495,73 @@ function DraftsTab({ runId }: { runId: string }) {
   return (
     <div>
       <div className="draft-toolbar">
-        <button onClick={() => void generate()} disabled={generating}>
-          {generating ? 'Generating…' : 'Generate template review'}
+        <button
+          onClick={() => void generate()}
+          disabled={generating || (writer === 'model' && !model.trim())}
+        >
+          {generating ? 'Generating…' : 'Generate review'}
         </button>
         <label>
+          Writer
+          <select value={writer} onChange={(event) => setWriter(event.target.value)}>
+            <option value="template">Template</option>
+            <option value="model">Model</option>
+          </select>
+        </label>
+        {writer === 'model' ? (
+          <>
+            <label>
+              Model
+              <input
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder="qwen3:8b"
+              />
+            </label>
+            <label>
+              Base URL
+              <input
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+              />
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={support}
+                onChange={(event) => setSupport(event.target.checked)}
+              />
+              Support pass
+            </label>
+          </>
+        ) : null}
+        <label>
           Style
-          <select value={style} onChange={(event) => setStyle(event.target.value)}>
+          <select
+            value={style}
+            disabled={Boolean(cslXml)}
+            onChange={(event) => setStyle(event.target.value)}
+          >
             <option value="apa">APA</option>
             <option value="vancouver">Vancouver</option>
             <option value="harvard">Harvard</option>
           </select>
         </label>
+        <label>
+          CSL
+          <input type="file" accept=".csl,.xml" onChange={(event) => void loadCsl(event)} />
+        </label>
+        {cslName ? <span className="muted">custom: {cslName}</span> : null}
         {error ? <span className="error">{error}</span> : null}
       </div>
+
+      {writer === 'model' ? (
+        <p className="muted small">
+          API keys come from the server environment. The evidence bundle leaves
+          this machine if the base URL is not localhost.
+        </p>
+      ) : null}
+      {warning ? <p className="warning">{warning}</p> : null}
 
       {!drafts.length ? (
         <p>No drafts yet. Generate one above.</p>

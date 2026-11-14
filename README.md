@@ -206,9 +206,12 @@ npm run dev:web
 # open http://127.0.0.1:5173
 ```
 
-Review generation stays on the CLI for now; the UI is for reading and triage.
-The Drafts tab can generate a template review for the selected run and compare a
-revision with its parent side by side.
+The Drafts tab can generate a template or local-model review for the selected
+run, run the support pass, use a named style or a custom CSL file, and compare a
+revision with its parent side by side. API keys come from the server environment
+(`WINNOW_MODEL_API_KEY` or `OPENAI_API_KEY`); the browser never receives them,
+and a non-local base URL shows a warning because the evidence bundle leaves the
+machine.
 
 ## Stance and argument
 
@@ -284,15 +287,15 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   verification, and compares the snapshot hash. Corruption and drift are
   reported as problems.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
-  with a session token for writes. The Drafts tab can generate a template review
-  and compare a revision with its parent.
+  with a session token for writes. The Drafts tab can generate a template or
+  model review, run support triage, use a named or custom CSL, and compare a
+  revision with its parent.
 - Unit and integration tests across briefs, screening, extraction, stance,
   drafting, argument maps, model output validation, support triage, citation
   styles, review queue, citation chasing, citability, dedupe, ranking,
   formatting, project lifecycle, database updates and replay.
 
-Not yet: the desktop shell, model and custom-CSL controls in the web UI, and a
-fuller visual diff for draft revisions.
+Not yet: the desktop shell and a richer visual draft diff.
 
 ## Why another literature tool
 

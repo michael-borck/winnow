@@ -5,11 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_FIELDS,
+  applySupportCheck,
   buildEvidenceBundle,
   checkDraft,
   CitationError,
   dropHeldSentence,
   findProject,
+  generateModelDraft,
   generateTemplateDraft,
   getDraft,
   getLatestDraft,
@@ -20,12 +22,15 @@ import {
   loadDraftSnapshot,
   loadExtractionState,
   loadScreeningState,
+  ModelError,
   normaliseStyle,
   openProject,
   recordScreeningDecision,
+  registerCslStyle,
   renderDraftMarkdown,
   restoreHeldSentence,
   saveDraft,
+  shortHash,
   type ScreeningDecision,
   type ScreeningReasonCode,
   type ScreeningRelevance,
@@ -191,29 +196,61 @@ app.get('/api/evidence', (req, res) => {
   });
 });
 
-app.post('/api/review', (req, res) => {
-  const { runId, fields, style } = req.body as {
+app.post('/api/review', async (req, res) => {
+  const body = req.body as {
     runId?: string;
     fields?: unknown;
     style?: string;
+    writer?: string;
+    model?: string;
+    baseUrl?: string;
+    support?: boolean;
+    supportModel?: string;
+    csl?: string;
   };
-  if (!runId) {
+  if (!body.runId) {
     res.status(400).json({ error: 'runId is required' });
     return;
   }
-  const run = getRun(project.db, runId);
+  const run = getRun(project.db, body.runId);
   if (!run) {
     res.status(404).json({ error: 'Run not found' });
     return;
   }
 
   const fieldList =
-    Array.isArray(fields) && fields.length
-      ? fields.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    Array.isArray(body.fields) && body.fields.length
+      ? body.fields.filter(
+          (item): item is string =>
+            typeof item === 'string' && Boolean(item.trim()),
+        )
       : DEFAULT_FIELDS;
+  const writer = body.writer === 'model' ? 'model' : 'template';
+  const modelName = body.model?.trim();
+  const baseUrl = body.baseUrl?.trim() || 'http://localhost:11434/v1';
+  const apiKey =
+    process.env.WINNOW_MODEL_API_KEY ?? process.env.OPENAI_API_KEY;
+  const supportModel = body.supportModel?.trim() || modelName;
+
+  if (writer === 'model' && !modelName) {
+    res.status(400).json({ error: 'model is required for the model writer' });
+    return;
+  }
+  if (body.support && !supportModel) {
+    res.status(400).json({ error: 'support requires a model' });
+    return;
+  }
+
   let styleName: string;
+  let styleXml: string | undefined;
   try {
-    styleName = normaliseStyle(style ?? 'apa');
+    if (body.csl?.trim()) {
+      styleXml = body.csl;
+      styleName = `custom-${shortHash(styleXml).slice(0, 8)}`;
+      registerCslStyle(styleName, styleXml);
+    } else {
+      styleName = normaliseStyle(body.style ?? 'apa');
+    }
   } catch (error) {
     res.status(400).json({
       error: error instanceof Error ? error.message : String(error),
@@ -222,21 +259,43 @@ app.post('/api/review', (req, res) => {
   }
 
   try {
-    const bundle = buildEvidenceBundle(project.db, runId, fieldList);
+    const bundle = buildEvidenceBundle(project.db, body.runId, fieldList);
     if (!bundle.claims.length) {
       res.status(409).json({
         error: 'No confirmed evidence with quotes. Run extraction first.',
       });
       return;
     }
-    const checked = checkDraft(bundle, generateTemplateDraft(bundle));
+
+    const raw =
+      writer === 'model'
+        ? await generateModelDraft(bundle, {
+            baseUrl,
+            model: modelName!,
+            ...(apiKey ? { apiKey } : {}),
+            mode: 'review',
+          })
+        : generateTemplateDraft(bundle);
+    let checked = checkDraft(bundle, raw);
+
+    if (body.support) {
+      const outcome = await applySupportCheck(checked, bundle, {
+        baseUrl,
+        model: supportModel!,
+        ...(apiKey ? { apiKey } : {}),
+      });
+      checked = outcome.draft;
+    }
+
     checked.fields = fieldList;
     checked.citationStyle = styleName;
+    checked.citationStyleXml = styleXml;
     const markdown = renderDraftMarkdown(bundle, checked, styleName);
     const row = saveDraft(project.db, {
-      runId,
+      runId: body.runId,
       mode: checked.mode,
       writer: checked.writer,
+      model: writer === 'model' ? modelName : undefined,
       markdown,
       structured: checked,
       bundle,
@@ -245,11 +304,23 @@ app.post('/api/review', (req, res) => {
     res.json({
       draftId: row.id,
       kept: checked.sentences.filter((item) => item.status === 'kept').length,
-      dropped: checked.sentences.filter((item) => item.status === 'dropped').length,
+      marked: checked.sentences.filter(
+        (item) => item.status === 'kept_marked',
+      ).length,
+      held: checked.sentences.filter((item) => item.status === 'held').length,
+      dropped: checked.sentences.filter((item) => item.status === 'dropped')
+        .length,
+      ...(isLocalBaseUrl(baseUrl) || writer === 'template'
+        ? {}
+        : { warning: `Evidence bundle sent to ${hostOf(baseUrl)}` }),
     });
   } catch (error) {
     if (error instanceof CitationError) {
       res.status(400).json({ error: error.message });
+      return;
+    }
+    if (error instanceof ModelError) {
+      res.status(502).json({ error: error.message });
       return;
     }
     res.status(409).json({
@@ -416,6 +487,28 @@ function draftSummary(row: ReturnType<typeof listDrafts>[number]) {
     model: row.model,
     createdAt: row.created_at,
   };
+}
+
+function isLocalBaseUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname;
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hostOf(value: string): string {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
 }
 
 function isDecision(value: unknown): value is ScreeningDecision {

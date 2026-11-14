@@ -105,7 +105,11 @@ export interface QueueResponse {
 export interface ReviewResponse {
   draftId: string;
   kept: number;
+  marked: number;
+  held: number;
   dropped: number;
+  writer?: string;
+  warning?: string;
 }
 
 let sessionToken = '';

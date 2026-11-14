@@ -346,6 +346,27 @@ blockquote {
   font-size: 0.86rem;
 }
 
+.draft-toolbar input:not([type='file']):not([type='checkbox']) {
+  min-width: 160px;
+}
+
+.draft-toolbar label.check {
+  gap: 6px;
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.warning {
+  color: var(--gold-2);
+  border: 1px solid var(--gold);
+  background: rgba(217, 164, 65, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.86rem;
+}
+
 .compare {
   display: grid;
   grid-template-columns: 1fr 1fr;
