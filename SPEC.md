@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.4 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, and a localhost web UI
+**Implementation:** v0.1 scaffold plus v0.4 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, and a localhost web UI
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -978,9 +978,10 @@ service, not a second implementation of the pipeline.
   checkpoint.
 - Per-provider backoff on 429/5xx; all HTTP responses capped by size and time.
 - Provider payloads are stored compressed for replay, within the caps in §10.
-- A run is reproducible in two senses: **replay** re-derives deterministic
-  stages byte-identically from stored payloads; **re-execution** runs live and
-  reports drift (ADR 0011).
+- A run is reproducible in two senses: **replay** re-normalises the stored
+  provider payloads (OpenAlex, Crossref, Semantic Scholar), re-dedupes and
+  re-ranks with the stored verification, and compares the deterministic snapshot
+  hash; **re-execution** runs live and reports drift (ADR 0024).
 
 ## 16. Milestones
 
@@ -1152,4 +1153,4 @@ behaviour changes.
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
 | v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, held-sentence review queue with draft revisions; human-confirmed stance, argument maps, and a separate counter-evidence search run |
-| v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue; template review generation and parent/child draft comparison in the UI |
+| v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, full payload replay (re-normalise, re-dedupe, re-rank, compare hash), and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue; template review generation and parent/child draft comparison in the UI |

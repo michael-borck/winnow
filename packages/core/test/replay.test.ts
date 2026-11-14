@@ -37,7 +37,23 @@ describe('replay', () => {
       query: 'testing',
       url: 'https://example.test/works',
       fetchedAt: '2026-11-11T00:00:00.000Z',
-      body: '{"results":[]}',
+      body: JSON.stringify({
+        results: [
+          {
+            id: 'https://openalex.org/W1',
+            doi: 'https://doi.org/10.1/test',
+            display_name: 'A test paper',
+            publication_year: 2024,
+            authorships: [{ author: { display_name: 'Ada Lovelace' } }],
+            primary_location: {
+              source: { display_name: 'Journal of Tests' },
+              landing_page_url: 'https://doi.org/10.1/test',
+            },
+            type: 'article',
+            cited_by_count: 1,
+          },
+        ],
+      }),
     };
 
     createRun(project.db, { id: runId, query: 'testing', config: {} });

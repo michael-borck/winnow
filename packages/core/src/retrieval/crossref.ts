@@ -43,8 +43,6 @@ export async function retrieveCrossref(
   const { body, text, url: finalUrl } = await fetchJson(url.toString(), 'crossref', {
     mailto: options.mailto,
   });
-  const data = body as CrossrefResponse;
-  const items = data.message?.items ?? [];
   const payload: RetrievalPayload = {
     id: `payload-${randomUUID()}`,
     provider: 'crossref',
@@ -54,19 +52,33 @@ export async function retrieveCrossref(
     body: text,
   };
 
-  const candidates: RetrievedCandidate[] = [];
+  const candidates: RetrievedCandidate[] = normaliseCrossrefBody(body).map(
+    (item) => ({
+      source: item.source,
+      provider: 'crossref',
+      providerRank: item.providerRank,
+      payloadId: payload.id,
+    }),
+  );
+
+  return { candidates, payload };
+}
+
+export interface NormalisedWork {
+  source: AcademicSource;
+  providerRank: number;
+}
+
+export function normaliseCrossrefBody(body: unknown): NormalisedWork[] {
+  const data = body as CrossrefResponse;
+  const items = data.message?.items ?? [];
+  const works: NormalisedWork[] = [];
   items.forEach((item, index) => {
     const source = mapItem(item);
     if (!source) return;
-    candidates.push({
-      source,
-      provider: 'crossref',
-      providerRank: index + 1,
-      payloadId: payload.id,
-    });
+    works.push({ source, providerRank: index + 1 });
   });
-
-  return { candidates, payload };
+  return works;
 }
 
 function mapItem(item: CrossrefItem): AcademicSource | null {

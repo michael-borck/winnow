@@ -8,12 +8,13 @@ export {
 export { verifyDoi, verifySource, type VerifyOptions, type VerifiedDoi } from './verification/cite-sight-adapter.js';
 
 export { retrieve, matchesType, normaliseSourceType, type RetrieveOptions } from './retrieval/index.js';
-export { retrieveOpenAlex, abstractFromInvertedIndex } from './retrieval/openalex.js';
-export { retrieveCrossref } from './retrieval/crossref.js';
+export { retrieveOpenAlex, abstractFromInvertedIndex, normaliseOpenAlexBody } from './retrieval/openalex.js';
+export { retrieveCrossref, normaliseCrossrefBody } from './retrieval/crossref.js';
 export {
   fetchCitationCandidates,
   sampleCitationCandidates,
   hasCriticalContext,
+  normaliseSemanticScholarBody,
   type CitationChaseOptions,
   type CitationChaseProviderResult,
 } from './retrieval/semanticScholar.js';

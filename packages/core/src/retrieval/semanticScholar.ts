@@ -61,7 +61,6 @@ export async function fetchCitationCandidates(
     'semantic_scholar',
     { apiKey: options.apiKey, timeoutMs: 25_000 },
   );
-  const data = body as SemanticScholarResponse;
   const payload: RetrievalPayload = {
     id: `payload-${randomUUID()}`,
     provider: 'semantic_scholar',
@@ -71,19 +70,34 @@ export async function fetchCitationCandidates(
     body: text,
   };
 
-  const candidates: RetrievedCandidate[] = [];
+  const candidates: RetrievedCandidate[] = normaliseSemanticScholarBody(body).map(
+    (item) => ({
+      source: item.source,
+      provider: 'semantic_scholar',
+      providerRank: item.providerRank,
+      payloadId: payload.id,
+    }),
+  );
+
+  return { candidates, payload };
+}
+
+export interface NormalisedCitation {
+  source: AcademicSource;
+  providerRank: number;
+}
+
+export function normaliseSemanticScholarBody(
+  body: unknown,
+): NormalisedCitation[] {
+  const data = body as SemanticScholarResponse;
+  const citations: NormalisedCitation[] = [];
   (data.data ?? []).forEach((item, index) => {
     const source = mapCitingPaper(item);
     if (!source) return;
-    candidates.push({
-      source,
-      provider: 'semantic_scholar',
-      providerRank: index + 1,
-      payloadId: payload.id,
-    });
+    citations.push({ source, providerRank: index + 1 });
   });
-
-  return { candidates, payload };
+  return citations;
 }
 
 /**

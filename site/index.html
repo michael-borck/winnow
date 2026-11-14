@@ -203,6 +203,7 @@
       <span>Custom CSL</span>
       <span>Review queue</span>
       <span>Local web UI</span>
+      <span>Full payload replay</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -279,9 +280,11 @@
             Vancouver or Harvard, or from a custom CSL file. Counter-evidence
             can come from critical queries or citation chasing through Semantic
             Scholar. The same data is available in a local web UI, including a
-            template-review button and a side-by-side draft comparison.
-            Everything lives in one SQLite database, with raw provider payloads
-            kept for replay.
+            template-review button and a side-by-side draft comparison. Every
+            retrieval payload is stored, so replay re-normalises and re-ranks the
+            original provider responses and checks the result hash. Everything
+            lives in one SQLite database, with raw provider payloads kept for
+            replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use

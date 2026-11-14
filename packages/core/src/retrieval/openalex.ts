@@ -47,7 +47,6 @@ export async function retrieveOpenAlex(
   const { body, text, url: finalUrl } = await fetchJson(url.toString(), 'openalex', {
     mailto: options.mailto,
   });
-  const data = body as OpenAlexResponse;
   const payload: RetrievalPayload = {
     id: `payload-${randomUUID()}`,
     provider: 'openalex',
@@ -57,22 +56,35 @@ export async function retrieveOpenAlex(
     body: text,
   };
 
-  const candidates: RetrievedCandidate[] = [];
-  (data.results ?? []).forEach((work, index) => {
-    const source = mapWork(work);
-    if (!source) return;
-    candidates.push({
-      source,
+  const candidates: RetrievedCandidate[] = normaliseOpenAlexBody(body).map(
+    (item) => ({
+      source: item.source,
       provider: 'openalex',
-      providerRank: index + 1,
+      providerRank: item.providerRank,
       payloadId: payload.id,
-    });
-  });
+    }),
+  );
 
   return { candidates, payload };
 }
 
-function mapWork(work: OpenAlexWork): AcademicSource | null {
+export interface NormalisedWork {
+  source: AcademicSource;
+  providerRank: number;
+}
+
+export function normaliseOpenAlexBody(body: unknown): NormalisedWork[] {
+  const data = body as OpenAlexResponse;
+  const works: NormalisedWork[] = [];
+  (data.results ?? []).forEach((work, index) => {
+    const source = mapWork(work);
+    if (!source) return;
+    works.push({ source, providerRank: index + 1 });
+  });
+  return works;
+}
+
+export function mapWork(work: OpenAlexWork): AcademicSource | null {
   const title = (work.display_name ?? work.title ?? '').trim();
   if (!title) return null;
 

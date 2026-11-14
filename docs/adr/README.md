@@ -29,3 +29,4 @@ consequences.
 | [0021](0021-custom-csl.md) | Custom CSL files are registered and stored with the draft |
 | [0022](0022-local-web-ui.md) | Local web UI over a localhost server and session token |
 | [0023](0023-ui-template-review.md) | The UI generates template reviews; model and CSL stay in the CLI |
+| [0024](0024-full-payload-replay.md) | Full payload replay with stored verification |

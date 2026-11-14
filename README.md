@@ -14,9 +14,9 @@ The name is the job: separate the grain from the chaff, and show your working.
 **Status:** v0.4 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`
 and `replay`; template or local-model writers, support triage, citeproc styles,
-citation chasing, custom CSL files and a local web UI are available. The
-desktop shell and full payload replay are next. v1 targets structured narrative
-and scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
+citation chasing, custom CSL files, full payload replay and a local web UI are
+available. The desktop shell is next. v1 targets structured narrative and
+scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
 [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -279,8 +279,10 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   new draft revision with a recorded reviewer and rationale.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
-- `winnow replay` — filesystem payload checks plus a deterministic snapshot
-  hash comparison.
+- `winnow replay` — re-normalises every stored provider payload (OpenAlex,
+  Crossref, Semantic Scholar), re-dedupes and re-ranks with the stored
+  verification, and compares the snapshot hash. Corruption and drift are
+  reported as problems.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
   with a session token for writes. The Drafts tab can generate a template review
   and compare a revision with its parent.
@@ -289,9 +291,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   styles, review queue, citation chasing, citability, dedupe, ranking,
   formatting, project lifecycle, database updates and replay.
 
-Not yet: the desktop shell, full replay that re-normalises stored payloads
-(current replay verifies payload hashes and re-derives the stored snapshot),
-review generation from the web UI, and a fuller visual diff for draft revisions.
+Not yet: the desktop shell, model and custom-CSL controls in the web UI, and a
+fuller visual diff for draft revisions.
 
 ## Why another literature tool
 
