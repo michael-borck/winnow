@@ -1,0 +1,16 @@
+{
+  "name": "@michaelborck/winnow-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop shell for Winnow",
+  "license": "MIT",
+  "author": "Michael Borck",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^45.3.2"
+  }
+}

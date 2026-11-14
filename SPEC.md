@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.4 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, and a localhost web UI
+**Implementation:** v0.1 scaffold plus v0.5 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, a localhost web UI, and an Electron shell
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -964,6 +964,22 @@ npm run dev:web
 # http://127.0.0.1:5173
 ```
 
+### 14.2 Desktop shell
+
+`packages/desktop` is an Electron main process. It asks for a project folder (or
+takes `WINNOW_PROJECT`), spawns the server with `WINNOW_PORT=0` and
+`WINNOW_READY_JSON=1`, waits for the ready line, and loads the localhost URL in a
+window with `contextIsolation`, `sandbox` and no Node integration. External links
+open in the system browser. The server is killed when the app quits.
+
+```bash
+npm run desktop
+WINNOW_PROJECT=/path/to/project npm run desktop
+```
+
+Installers, notarization and first-run model setup are not wired up yet; this is
+a development shell.
+
 A Python sidecar is explicitly not used in v1. It earns its place only if PDF
 parsing or local embeddings become a requirement, and then it is an isolated
 service, not a second implementation of the pipeline.
@@ -993,7 +1009,7 @@ service, not a second implementation of the pipeline.
 | **v0.2** | Briefs, interactive and CSV screening, extraction, stage gates, PRISMA-inspired counts, screening evaluation, checkpoint/resume |
 | **v0.3** | Review and Argue, evidence bundle, sentence types, checks 1–6, support triage, counter-evidence pass, citation rendering, drafting evaluation |
 | **v0.4** | Local web UI: browse, triage, read, edit drafts, review queue |
-| **v0.5** | Desktop shell, installers, first-run model setup, native-module rebuild |
+| **v0.5** | Desktop shell (partial: Electron window, project picker, server lifecycle); installers, notarization and first-run model setup next |
 | **v1.0** | Hardening, docs, reproducibility report, release |
 
 Evaluation is built with each feature, not at v1.0. Screening is measured
@@ -1157,3 +1173,4 @@ behaviour changes.
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
 | v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, held-sentence review queue with draft revisions; human-confirmed stance, argument maps, and a separate counter-evidence search run |
 | v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, full payload replay (re-normalise, re-dedupe, re-rank, compare hash), and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue; template or model drafting, support triage, named or custom CSL, and parent/child draft comparison in the UI |
+| v0.5 (partial) | 2026-11-11 | Electron desktop shell around the local UI: project picker, server on a free port, ready handshake, localhost-only window, server cleanup on quit |

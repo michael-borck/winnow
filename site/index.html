@@ -204,6 +204,8 @@
       <span>Review queue</span>
       <span>Local web UI</span>
       <span>Full payload replay</span>
+      <span>Local web UI</span>
+      <span>Desktop shell</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -326,6 +328,9 @@ winnow counter . --of 10.1038/s41586-020-2649-2 --thesis "Retrieval improves acc
 winnow queue .
 winnow queue . --restore &lt;sentence-id&gt; --rationale "Relevant, but weaker than claimed"
 
+<span class="comment"># or open the desktop shell</span>
+npm run desktop
+
 <span class="comment"># stance, argument map, counter-evidence pass</span>
 winnow stance . --thesis "Retrieval improves accuracy." --suggest
 winnow argue . --thesis "Retrieval improves accuracy." --out drafts/argument.md
@@ -374,7 +379,7 @@ winnow replay &lt;run-id&gt;</code></pre>
             <tr>
               <td>v0.5</td>
               <td>Desktop shell, installers, first-run local model setup</td>
-              <td>Planned</td>
+              <td class="next">In progress</td>
             </tr>
           </tbody>
         </table>

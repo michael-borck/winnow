@@ -445,9 +445,15 @@ app.use(
   },
 );
 
-app.listen(port, '127.0.0.1', () => {
-  console.log(`Winnow web UI: http://127.0.0.1:${port}`);
+const server = app.listen(port, '127.0.0.1', () => {
+  const address = server.address();
+  const actualPort =
+    typeof address === 'object' && address ? address.port : port;
+  console.log(`Winnow web UI: http://127.0.0.1:${actualPort}`);
   console.log(`Project: ${project.root}`);
+  if (process.env.WINNOW_READY_JSON === '1') {
+    console.log(`WINNOW_READY ${JSON.stringify({ port: actualPort })}`);
+  }
 });
 
 process.on('SIGINT', () => {

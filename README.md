@@ -11,13 +11,13 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v0.4 in progress. The CLI implements `init`, `brief`, `search`,
+**Status:** v0.5 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`
 and `replay`; template or local-model writers, support triage, citeproc styles,
-citation chasing, custom CSL files, full payload replay and a local web UI are
-available. The desktop shell is next. v1 targets structured narrative and
-scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
-[docs/reviews](docs/reviews/README.md).
+citation chasing, custom CSL files, full payload replay, a local web UI and a
+desktop shell are available. Installers and notarization are next. v1 targets
+structured narrative and scoping reviews, not systematic reviews. See
+[SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
 
@@ -213,6 +213,21 @@ revision with its parent side by side. API keys come from the server environment
 and a non-local base URL shows a warning because the evidence bundle leaves the
 machine.
 
+## Desktop shell
+
+`npm run desktop` builds the packages, starts the local server on a free port
+and opens the same UI in an Electron window. If no project is given, it asks for
+a project folder.
+
+```bash
+npm run desktop
+WINNOW_PROJECT=/path/to/project npm run desktop
+```
+
+The window has no Node integration and loads only the localhost server. The
+shell stops the server when the app quits. Installers and notarization are not
+wired up yet; this is a development shell.
+
 ## Stance and argument
 
 Stance is relative to a thesis and human-confirmed. The tool can suggest a
@@ -290,12 +305,15 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   with a session token for writes. The Drafts tab can generate a template or
   model review, run support triage, use a named or custom CSL, and compare a
   revision with its parent.
+- **Desktop shell** — Electron window around the local UI; starts the server on
+  a free port and stops it on quit.
 - Unit and integration tests across briefs, screening, extraction, stance,
   drafting, argument maps, model output validation, support triage, citation
   styles, review queue, citation chasing, citability, dedupe, ranking,
   formatting, project lifecycle, database updates and replay.
 
-Not yet: the desktop shell and a richer visual draft diff.
+Not yet: installers and notarization for the desktop app, and a richer visual
+draft diff.
 
 ## Why another literature tool
 
@@ -323,7 +341,7 @@ between, and refuses to skip it:
 |---|---|---|
 | CLI | v0.4 in progress | Search, screen, extract, stance, review, argue, counter, queue, verify, replay |
 | Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
-| Desktop app | v0.5 | Same UI in a shell, for people who will not open a terminal |
+| Desktop app | v0.5 in progress | Development shell around the local UI; installers next |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |
 
 ## Documentation
