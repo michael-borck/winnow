@@ -68,14 +68,17 @@ import {
   recordScreeningSuggestion,
   recordStanceDecision,
   recordStanceSuggestionFor,
+  registerCslStyle,
   renderDraftMarkdown,
   replayRun,
   restoreHeldSentence,
+  runCitationChase,
   saveBrief,
   saveDraft,
   savePayload,
   saveRunSources,
   searchLiterature,
+  shortHash,
   snapshotForRankedSources,
   suggestExtraction,
   suggestScreening,
@@ -170,6 +173,7 @@ interface ReviewCliOptions {
   support?: boolean;
   supportModel?: string;
   style?: string;
+  csl?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -199,6 +203,7 @@ interface ArgueCliOptions {
   support?: boolean;
   supportModel?: string;
   style?: string;
+  csl?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -207,6 +212,7 @@ interface ArgueCliOptions {
 
 interface CounterCliOptions {
   topic?: string;
+  of?: string;
   thesis?: string;
   limit: string;
   provider: string;
@@ -812,6 +818,7 @@ program
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--style <style>', 'apa, vancouver or harvard', 'apa')
+  .option('--csl <file>', 'custom CSL style file (overrides --style)')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -829,7 +836,7 @@ program
           baseUrl: options.baseUrl,
         })
       : undefined;
-    const style = normaliseStyle(options.style ?? 'apa');
+    const { style, xml: styleXml } = await resolveCitationStyle(options);
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -894,6 +901,7 @@ program
       }
       checked.fields = fields;
       checked.citationStyle = style;
+      checked.citationStyleXml = styleXml;
       const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
@@ -939,6 +947,7 @@ program
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--style <style>', 'apa, vancouver or harvard', 'apa')
+  .option('--csl <file>', 'custom CSL style file (overrides --style)')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -957,7 +966,7 @@ program
           baseUrl: options.baseUrl,
         })
       : undefined;
-    const style = normaliseStyle(options.style ?? 'apa');
+    const { style, xml: styleXml } = await resolveCitationStyle(options);
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -1032,6 +1041,7 @@ program
       }
       checked.fields = fields;
       checked.citationStyle = style;
+      checked.citationStyleXml = styleXml;
       const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
@@ -1069,6 +1079,7 @@ program
   .command('counter [project]')
   .description('Run a counter-evidence search with critical terms')
   .option('--topic <text>', 'topic (default: latest run query)')
+  .option('--of <doi>', 'citation chasing: citing papers of a DOI')
   .option('--thesis <text>', 'also store stance suggestions for the new run')
   .option('--limit <n>', 'maximum selected sources', '20')
   .option('--provider <list>', 'comma-separated providers', 'openalex,crossref')
@@ -1082,11 +1093,17 @@ program
     const project = await openProject(root);
 
     try {
+      if (options.of && options.topic) {
+        throw new UsageError('Use --of or --topic, not both');
+      }
       const latest = getLatestRun(project.db);
-      const topic = options.topic?.trim() || latest?.query;
+      const topic =
+        options.topic?.trim() ||
+        latest?.query ||
+        (options.of ? `citations of ${options.of}` : undefined);
       if (!topic) {
         throw new UsageError(
-          'Counter needs --topic or a completed run to take the topic from.',
+          'Counter needs --of, --topic, or a completed run to take the topic from.',
         );
       }
 
@@ -1098,16 +1115,25 @@ program
         '"replication failure"',
         'criticism',
       ];
-      const counterQuery = `${topic} ${criticalTerms.join(' OR ')}`;
-      const result = await searchLiterature(counterQuery, {
-        limit,
-        providers: options.provider
-          .split(',')
-          .map((provider) => provider.trim())
-          .filter(Boolean),
-        mailto: options.mailto,
-        checkLinks: false,
-      });
+      const result = options.of
+        ? await runCitationChase(options.of, {
+            limit,
+            mailto: options.mailto,
+            apiKey: process.env.SEMANTIC_SCHOLAR_API_KEY,
+          }).catch((error: unknown) => {
+            throw new UsageError(
+              error instanceof Error ? error.message : String(error),
+            );
+          })
+        : await searchLiterature(`${topic} ${criticalTerms.join(' OR ')}`, {
+            limit,
+            providers: options.provider
+              .split(',')
+              .map((provider) => provider.trim())
+              .filter(Boolean),
+            mailto: options.mailto,
+            checkLinks: false,
+          });
 
       const snapshot = snapshotForRankedSources(
         result.runId,
@@ -1120,10 +1146,11 @@ program
         config: {
           polarity: 'counter',
           counterOf: latest?.id ?? null,
+          chaseOf: options.of ?? null,
           topic,
-          criticalTerms,
+          criticalTerms: options.of ? [] : criticalTerms,
           limit,
-          providers: options.provider,
+          providers: options.of ? null : options.provider,
           mailto: options.mailto ?? null,
         },
       });
@@ -1854,6 +1881,36 @@ function reviewSummary(draft: StructuredDraft, draftId: string | null): string {
   return `kept ${kept}, marked ${marked}, held ${held}, dropped ${dropped}, claims ${draft.basis.claims}${
     draftId ? `; draft ${draftId}` : ''
   }\n`;
+}
+
+async function resolveCitationStyle(options: {
+  style?: string;
+  csl?: string;
+}): Promise<{ style: string; xml?: string }> {
+  if (!options.csl) {
+    return { style: normaliseStyle(options.style ?? 'apa') };
+  }
+  if (options.style && options.style !== 'apa') {
+    throw new UsageError('Use --style or --csl, not both');
+  }
+
+  let xml: string;
+  try {
+    xml = await readFile(options.csl, 'utf8');
+  } catch (error) {
+    throw new UsageError(
+      `Cannot read CSL file: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const name = `custom-${shortHash(xml).slice(0, 8)}`;
+  try {
+    registerCslStyle(name, xml);
+  } catch (error) {
+    if (error instanceof CitationError) throw new UsageError(error.message);
+    throw error;
+  }
+  return { style: name, xml };
 }
 
 function modelEndpointOptions(options: {

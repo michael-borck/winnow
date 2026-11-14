@@ -1,4 +1,4 @@
-import { Cite } from '@citation-js/core';
+import { Cite, plugins } from '@citation-js/core';
 import '@citation-js/plugin-csl';
 
 export type CitationStyle = 'apa' | 'vancouver' | 'harvard';
@@ -28,8 +28,23 @@ export function normaliseStyle(value: string): CitationStyle {
     return clean;
   }
   throw new CitationError(
-    `Unknown citation style: ${value}. Use apa, vancouver or harvard.`,
+    `Unknown citation style: ${value}. Use apa, vancouver or harvard, or pass --csl <file>.`,
   );
+}
+
+export function registerCslStyle(name: string, xml: string): void {
+  const clean = name.trim();
+  if (!clean) throw new CitationError('CSL style name is required');
+  if (!xml.includes('<style') || !xml.includes('</style>')) {
+    throw new CitationError('CSL file does not look like a CSL style');
+  }
+  try {
+    plugins.config.get('@csl').styles.add(clean, xml);
+  } catch (error) {
+    throw new CitationError(
+      `Cannot register CSL style ${clean}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 export function sourceToCsl(source: CslSource): Record<string, unknown> {
@@ -55,7 +70,7 @@ export function sourceToCsl(source: CslSource): Record<string, unknown> {
 
 export function formatCitation(
   sources: CslSource[],
-  style: CitationStyle,
+  style: string,
 ): string {
   if (!sources.length) return '';
   try {
@@ -77,7 +92,7 @@ export function formatCitation(
 
 export function formatBibliography(
   sources: CslSource[],
-  style: CitationStyle,
+  style: string,
 ): string[] {
   if (!sources.length) return [];
   try {
@@ -102,7 +117,7 @@ export function formatBibliography(
   }
 }
 
-function templateName(style: CitationStyle): string {
+function templateName(style: string): string {
   return style === 'harvard' ? 'harvard1' : style;
 }
 

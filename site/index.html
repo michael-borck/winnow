@@ -199,7 +199,10 @@
       <span>Template + model writer</span>
       <span>Support triage</span>
       <span>Citeproc styles</span>
+      <span>Citation chasing</span>
+      <span>Custom CSL</span>
       <span>Review queue</span>
+      <span>Local web UI</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -273,8 +276,11 @@
             unsupported ones for review. A held-sentence queue restores or
             accepts each hold as a new draft revision, so the audit trail stays
             intact. Citations and references render through citeproc in APA,
-            Vancouver or Harvard. Everything lives in one SQLite database, with
-            raw provider payloads kept for replay.
+            Vancouver or Harvard, or from a custom CSL file. Counter-evidence
+            can come from critical queries or citation chasing through Semantic
+            Scholar. The same data is available in a local web UI. Everything
+            lives in one SQLite database, with raw provider payloads kept for
+            replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -310,6 +316,8 @@ winnow review . --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --support --out drafts/review.md
 winnow review . --style vancouver --out drafts/review.md
+winnow review . --csl journal.csl --out drafts/review.md
+winnow counter . --of 10.1038/s41586-020-2649-2 --thesis "Retrieval improves accuracy."
 winnow queue .
 winnow queue . --restore &lt;sentence-id&gt; --rationale "Relevant, but weaker than claimed"
 
@@ -355,8 +363,8 @@ winnow replay &lt;run-id&gt;</code></pre>
             </tr>
             <tr>
               <td>v0.4</td>
-              <td>Local web UI: browse, triage, read, edit drafts, review queue</td>
-              <td>Planned</td>
+              <td>Local web UI: browse, triage, read drafts, review queue</td>
+              <td class="done">Available</td>
             </tr>
             <tr>
               <td>v0.5</td>

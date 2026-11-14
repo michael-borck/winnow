@@ -3,6 +3,7 @@ import {
   formatBibliography,
   formatCitation,
   normaliseStyle,
+  registerCslStyle,
   type CslSource,
 } from '../src/citation/csl.js';
 import type { EvidenceBundle, StructuredDraft } from '../src/drafting/drafting.js';
@@ -34,6 +35,34 @@ describe('citation styles', () => {
     expect(bibliography).toContain('Lovelace');
     expect(bibliography).toContain('2024');
     expect(bibliography).toContain('A study of retrieval');
+  });
+
+  it('registers and uses a custom CSL file', () => {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0" default-locale="en-US">
+  <info>
+    <title>Winnow test title style</title>
+    <id>http://example.com/winnow-test-title</id>
+    <updated>2020-01-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <text variable="title"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>`;
+    registerCslStyle('winnow-test-title', xml);
+    expect(formatCitation(sources, 'winnow-test-title')).toContain(
+      'A study of retrieval',
+    );
+    expect(formatBibliography(sources, 'winnow-test-title').join(' ')).toContain(
+      'A study of retrieval',
+    );
   });
 });
 

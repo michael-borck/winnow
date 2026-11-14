@@ -104,6 +104,7 @@ export interface AcademicSource {
   citationProvider?: string;
   citationCollectedAt?: string;
   openAccessUrl?: string;
+  citationContexts?: string[];
   sourceProvider: string;
 }
 

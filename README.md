@@ -11,12 +11,12 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
+**Status:** v0.4 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`
-and `replay`; template or local-model writers, support triage, citeproc styles
-and a held-sentence review queue are available. Citation chasing, custom CSL
-files and the web/desktop surfaces are next. v1 targets structured narrative and
-scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
+and `replay`; template or local-model writers, support triage, citeproc styles,
+citation chasing, custom CSL files and a local web UI are available. The
+desktop shell and full payload replay are next. v1 targets structured narrative
+and scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md) and
 [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -42,6 +42,8 @@ winnow review . --out drafts/review.md
 winnow stance . --thesis "Retrieval improves accuracy." --suggest
 winnow argue . --thesis "Retrieval improves accuracy." --out drafts/argument.md
 winnow counter . --topic "retrieval augmented generation" --thesis "Retrieval improves accuracy."
+winnow counter . --of 10.1038/s41586-020-2649-2 --thesis "Retrieval improves accuracy."
+winnow review . --csl journal.csl --out drafts/review.md
 winnow verify 10.1038/s41586-020-2649-2
 winnow replay <run-id>
 ```
@@ -167,9 +169,9 @@ draft and listed for review; partial support is marked inline. A failed support
 call leaves the sentence in place and reports that the check did not run.
 
 `--style` renders in-text citations and the reference list with citeproc:
-`apa` (default), `vancouver` or `harvard`. The CSL engine is citation-js, so
-chapter, report, thesis and conference types map correctly. Custom CSL files are
-the next step.
+`apa` (default), `vancouver` or `harvard`. `--csl <file>` registers a custom CSL
+style and uses it for that draft. The CSL engine is citation-js, so chapter,
+report, thesis and conference types map correctly.
 
 ## Review queue
 
@@ -183,6 +185,28 @@ winnow queue . --restore <sentence-id> --rationale "Relevant, but weaker than cl
 winnow queue . --drop <sentence-id>
 winnow queue . --format json
 ```
+
+## Local web UI
+
+The local UI covers sources, evidence, drafts and the hold queue. It binds to
+`127.0.0.1`, and state-changing requests carry a per-session token fetched from
+the server.
+
+```bash
+npm run build
+node packages/server/dist/index.js --project=.
+# open http://127.0.0.1:4317
+```
+
+For development, run the API and Vite separately:
+
+```bash
+npm run dev:server
+npm run dev:web
+# open http://127.0.0.1:5173
+```
+
+Review generation stays on the CLI for now; the UI is for reading and triage.
 
 ## Stance and argument
 
@@ -212,6 +236,16 @@ winnow counter . --topic "retrieval augmented generation" \
   --thesis "Retrieval improves accuracy." --limit 20
 ```
 
+`--of <doi>` switches to citation chasing through Semantic Scholar: it fetches
+the papers that cite the DOI, keeps their citation contexts, samples the
+critical contexts first, verifies the resulting records and saves them as a
+counter run.
+
+```bash
+winnow counter . --of 10.1038/s41586-020-2649-2 \
+  --thesis "Retrieval improves accuracy." --limit 20
+```
+
 ## What works now
 
 - `winnow init` — project folder, `.winnow/project.json`, SQLite schema, local
@@ -229,29 +263,32 @@ winnow counter . --topic "retrieval augmented generation" \
   includes are extracted.
 - `winnow review` — evidence bundle, template or local-model writer,
   deterministic checks 1–5, optional support entailment pass, kept/marked/held/
-  dropped report, citeproc citations and an evidence appendix.
+  dropped report, citeproc citations and an evidence appendix. `--csl` accepts a
+  custom style.
 - `winnow stance` — human stance labels relative to a thesis, separate heuristic
   suggestions, and CSV/JSON import-export.
 - `winnow argue` — argument map and draft with supporting, opposing, mixed and
   unclear sections, plus a checks-filtered synthesis. The model writer is
   available here too.
-- `winnow counter` — a separate critical-terms search run that seeds
-  counter-evidence candidates and optional stance suggestions.
+- `winnow counter` — a separate critical-terms search run, or `--of <doi>`
+  citation chasing through Semantic Scholar, that seeds counter-evidence
+  candidates and optional stance suggestions.
 - `winnow queue` — lists held sentences and restores or accepts them, creating a
   new draft revision with a recorded reviewer and rationale.
 - `winnow verify` — a DOI or every DOI in a text file, with identity, match
   category, integrity notices, link status and citability.
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
+- **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
+  with a session token for writes.
 - Unit and integration tests across briefs, screening, extraction, stance,
   drafting, argument maps, model output validation, support triage, citation
-  styles, review queue, citability, dedupe, ranking, formatting, project
-  lifecycle, database updates and replay.
+  styles, review queue, citation chasing, citability, dedupe, ranking,
+  formatting, project lifecycle, database updates and replay.
 
-Not yet: citation chasing for counter-evidence, custom CSL file styles, link
-probing during search (use `--check-links`), full replay that re-normalises
-stored payloads (current replay verifies payload hashes and re-derives the
-stored snapshot), the local web UI and the desktop shell.
+Not yet: the desktop shell, full replay that re-normalises stored payloads
+(current replay verifies payload hashes and re-derives the stored snapshot),
+review generation from the web UI, and a fuller visual diff for draft revisions.
 
 ## Why another literature tool
 
@@ -277,8 +314,8 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.3 in progress | Search, screen, extract, stance, review, argue, counter, verify, replay |
-| Local web UI | v0.4 | Browse, triage, read, edit |
+| CLI | v0.4 in progress | Search, screen, extract, stance, review, argue, counter, queue, verify, replay |
+| Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
 | Desktop app | v0.5 | Same UI in a shell, for people who will not open a terminal |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |
 

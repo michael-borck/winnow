@@ -10,7 +10,7 @@ import {
   type EvidenceBundle,
   type StructuredDraft,
 } from '../drafting/drafting.js';
-import { normaliseStyle } from '../citation/csl.js';
+import { registerCslStyle } from '../citation/csl.js';
 
 export class QueueError extends Error {
   constructor(message: string) {
@@ -167,11 +167,11 @@ function reviseHeldSentence(
       item.id === updated.id ? updated : item,
     ),
   };
-  const markdown = renderDraftMarkdown(
-    bundle,
-    updatedDraft,
-    normaliseStyle(updatedDraft.citationStyle ?? 'apa'),
-  );
+  const style = updatedDraft.citationStyle ?? 'apa';
+  if (updatedDraft.citationStyleXml && updatedDraft.citationStyle) {
+    registerCslStyle(updatedDraft.citationStyle, updatedDraft.citationStyleXml);
+  }
+  const markdown = renderDraftMarkdown(bundle, updatedDraft, style);
 
   const newRow = saveDraft(db, {
     runId: row.run_id,

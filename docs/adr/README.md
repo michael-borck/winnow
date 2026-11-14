@@ -25,3 +25,6 @@ consequences.
 | [0017](0017-support-check.md) | Support check holds sentences; it never deletes them |
 | [0018](0018-citeproc-styles.md) | Citeproc renders citations; source IDs remain the contract |
 | [0019](0019-held-sentence-queue.md) | Held sentences are a queue; restores create a draft revision |
+| [0020](0020-citation-chasing.md) | Citation chasing through Semantic Scholar contexts |
+| [0021](0021-custom-csl.md) | Custom CSL files are registered and stored with the draft |
+| [0022](0022-local-web-ui.md) | Local web UI over a localhost server and session token |

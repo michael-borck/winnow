@@ -544,6 +544,16 @@ export function saveRunSources(
        sha256 = excluded.sha256,
        fetched_at = excluded.fetched_at`,
   );
+  const insertContext = db.prepare(
+    `INSERT INTO source_text
+     (source_id, kind, text, normalised_text, sha256, licence, fetched_at)
+     VALUES (?, 'citation_context', ?, ?, ?, NULL, ?)
+     ON CONFLICT(source_id, kind) DO UPDATE SET
+       text = excluded.text,
+       normalised_text = excluded.normalised_text,
+       sha256 = excluded.sha256,
+       fetched_at = excluded.fetched_at`,
+  );
   const insertRunSource = db.prepare(
     `INSERT OR REPLACE INTO run_sources
      (run_id, source_id, query, provider, provider_rank, rrf_score, rank, selected, raw_payload_id)
@@ -590,6 +600,17 @@ export function saveRunSources(
           source.abstract,
           normalised,
           stableHash(normalised),
+          new Date().toISOString(),
+        );
+      }
+
+      if (source.citationContexts?.length) {
+        const text = JSON.stringify(source.citationContexts);
+        insertContext.run(
+          source.id,
+          text,
+          normaliseText(source.citationContexts.join(' ')),
+          stableHash(text),
           new Date().toISOString(),
         );
       }
@@ -714,6 +735,9 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
       const textRow = db
         .prepare("SELECT text FROM source_text WHERE source_id = ? AND kind = 'abstract'")
         .get(row.source_id) as { text: string } | undefined;
+      const contextRow = db
+        .prepare("SELECT text FROM source_text WHERE source_id = ? AND kind = 'citation_context'")
+        .get(row.source_id) as { text: string } | undefined;
 
       const source: AcademicSource = {
         id: sourceRow.id,
@@ -725,6 +749,9 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
         doi: doiRow?.value,
         url: urlRow?.value,
         abstract: textRow?.text,
+        ...(contextRow
+          ? { citationContexts: JSON.parse(contextRow.text) as string[] }
+          : {}),
         citationCount: sourceRow.citation_count ?? undefined,
         citationProvider: sourceRow.citation_provider ?? undefined,
         citationCollectedAt: sourceRow.citation_collected_at ?? undefined,
@@ -1142,6 +1169,24 @@ export function getDraft(db: DatabaseSync, id: string): DraftRow | null {
     | DraftRow
     | undefined;
   return row ?? null;
+}
+
+export function listRuns(db: DatabaseSync, limit = 20): RunRow[] {
+  return db
+    .prepare('SELECT * FROM runs ORDER BY started_at DESC LIMIT ?')
+    .all(limit) as unknown as RunRow[];
+}
+
+export function listDrafts(db: DatabaseSync, runId?: string): DraftRow[] {
+  return (runId
+    ? db
+        .prepare(
+          'SELECT * FROM drafts WHERE run_id = ? ORDER BY created_at DESC',
+        )
+        .all(runId)
+    : db
+        .prepare('SELECT * FROM drafts ORDER BY created_at DESC')
+        .all()) as unknown as DraftRow[];
 }
 
 export function recordStance(

@@ -17,11 +17,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @michaelborck/winnow-core && npm run build -w @michaelborck/winnow-cli",
+    "build": "npm run build -w @michaelborck/winnow-core && npm run build -w @michaelborck/winnow-cli && npm run build -w @michaelborck/winnow-server && npm run build -w @michaelborck/winnow-web",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "npm run build",
-    "dev": "npm run build -w @michaelborck/winnow-core && tsx packages/cli/src/index.ts"
+    "dev": "npm run build -w @michaelborck/winnow-core && tsx packages/cli/src/index.ts",
+    "dev:server": "npm run build -w @michaelborck/winnow-core && tsx packages/server/src/index.ts",
+    "dev:web": "npm run dev -w @michaelborck/winnow-web"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

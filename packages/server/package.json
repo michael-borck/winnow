@@ -1,0 +1,27 @@
+{
+  "name": "@michaelborck/winnow-server",
+  "version": "0.1.0",
+  "description": "Local web server for Winnow",
+  "type": "module",
+  "license": "MIT",
+  "author": "Michael Borck",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michael-borck/winnow.git",
+    "directory": "packages/server"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@michaelborck/winnow-core": "0.1.0",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
+  }
+}

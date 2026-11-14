@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.3 partial — `init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`; template and local-model writers, optional support pass, citeproc citation styles, held-sentence review queue
+**Implementation:** v0.1 scaffold plus v0.4 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, and a localhost web UI
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -228,14 +228,19 @@ questioning is a later web/TUI feature, not a v1 CLI requirement.
 ### 6.6 Counter-evidence
 
 Counter-evidence is a retrieval pass, not a generation feature. `winnow counter`
-runs a separate search with critical terms (`limitations`, `critique`,
-`"no evidence"`, `"fails to"`, `"replication failure"`, `criticism`) and saves
-it as a new run linked to the original. It does not silently merge results into
-the main set.
+supports two retrieval paths:
 
-Pass `--thesis` to seed stance suggestions for the counter run, then screen and
-confirm labels as usual. The counter run keeps its own sources, verification,
-screening and stance data. A null result is a valid output.
+1. **Query inversion.** Run a separate search with critical terms
+   (`limitations`, `critique`, `"no evidence"`, `"fails to"`, `"replication
+   failure"`, `criticism`) and save it as a new run linked to the original.
+2. **Citation chasing.** `--of <doi>` fetches the papers that cite the DOI from
+   Semantic Scholar, keeps their citation contexts, samples the critical
+   contexts first, verifies the resulting records and saves them as a counter
+   run.
+
+Neither path silently merges results into the main set. Pass `--thesis` to seed
+stance suggestions for the counter run, then screen and confirm labels as usual.
+A null result is a valid output.
 
 ## 7. Pipeline
 
@@ -589,10 +594,12 @@ every citation to its quote and source.
 
 Drafts render in-text citations and the reference list through citeproc
 (citation-js). `apa` is the default; `vancouver` and `harvard` are available via
-`--style`. The engine maps article, chapter, book, report, thesis, conference
-and preprint types from source metadata. Claims cite source IDs internally; the
-renderer maps IDs to the chosen style. If rendering fails, the draft falls back
-to visible IDs and reports the failure. Custom CSL files are the next step.
+`--style`. `--csl <file>` registers a custom CSL style and uses it for that
+draft; the XML is stored with the draft so the queue can re-render it. The engine
+maps article, chapter, book, report, thesis, conference and preprint types from
+source metadata. Claims cite source IDs internally; the renderer maps IDs to the
+chosen style. If rendering fails, the draft falls back to visible IDs and
+reports the failure.
 
 ### 9.7 Model writer
 
@@ -626,7 +633,7 @@ migration policy: a newer database refuses to open in an older binary.
 | `RawPayload` | id, run_id, provider, url, fetched_at, sha256, compression, path, size |
 | `RunSource` | run_id, source_id, query_id, provider, provider_rank, rrf_score, rank, selected, raw_payload_id |
 | `Verification` | source_id, identity, match_category, integrity_json, link_status, completeness, confidence, provider, checked_at, evidence_json |
-| `SourceText` | source_id, kind (`abstract`/`fulltext`), text, normalised_text, sha256, licence, fetched_at |
+| `SourceText` | source_id, kind (`abstract`/`fulltext`/`citation_context`), text, normalised_text, sha256, licence, fetched_at |
 | `Screening` | id, run_id, source_id, decision (`include`/`exclude`/`maybe`), relevance (`core`/`supporting`/`peripheral`), reason_code, reason, tags_json, reviewer, decided_at (append-only) |
 | `ScreeningSuggestion` | id, run_id, source_id, suggested_decision, suggested_relevance, confidence, rationale, method, model, created_at |
 | `Stance` | id, run_id, source_id, target, target_hash, label (`supports`/`opposes`/`mixed`/`unclear`), quote, rationale, reviewer, confirmed_at (append-only; latest per source+target wins) |
@@ -717,6 +724,7 @@ winnow review [project]                 Grounded review draft
   --support                             Separate support entailment pass
   --support-model <name>                Model for the support pass
   --style <apa|vancouver|harvard>       Default: apa
+  --csl <file>                          Custom CSL style (overrides --style)
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
@@ -731,12 +739,14 @@ winnow argue [project]                  Argument map and draft
   --support                             Separate support entailment pass
   --support-model <name>                Model for the support pass
   --style <apa|vancouver|harvard>       Default: apa
+  --csl <file>                          Custom CSL style (overrides --style)
   --format <markdown|json>              Default: markdown
   --out <file>
   --no-save                             Do not store the draft
   --allow-suggested                     Use suggested stances where unconfirmed
 winnow counter [project]                Separate counter-evidence search run
   --topic "..."                         Default: latest run query
+  --of <doi>                            Citation chasing from a DOI
   --thesis "..."                        Also seed stance suggestions
   --limit <n>                           Max selected sources
   --provider <list>                     Providers to query
@@ -929,6 +939,28 @@ winnow/
 - Node 24+ is required for the built-in `node:sqlite` used by the CLI and
   server.
 
+### 14.1 Local web UI
+
+`packages/server` serves the built React app from `packages/web/dist`, binds
+`127.0.0.1:4317`, and exposes a JSON contract for state, sources, evidence,
+drafts and the hold queue. State-changing requests require a per-session token
+fetched from `/api/session`.
+
+The UI has four tabs: Sources (screen with include/maybe/exclude and priority),
+Evidence (confirmed values and suggestions), Drafts (Markdown preview and
+revision lineage), and Queue (restore or accept holds). Review generation stays
+in the CLI for now.
+
+```bash
+npm run build
+node packages/server/dist/index.js --project=/path/to/project
+# http://127.0.0.1:4317
+
+npm run dev:server
+npm run dev:web
+# http://127.0.0.1:5173
+```
+
 A Python sidecar is explicitly not used in v1. It earns its place only if PDF
 parsing or local embeddings become a requirement, and then it is an isolated
 service, not a second implementation of the pipeline.
@@ -1058,6 +1090,15 @@ planted-fabrication set.
     reviewer and rationale; the sentence is marked `kept_marked` and the
     override is visible in the rendered draft.
 24. Accepting a hold records a dropped override without deleting the sentence.
+25. `winnow counter --of <doi>` fetches citing papers and contexts from Semantic
+    Scholar, samples critical contexts first, verifies the records, and saves a
+    separate counter run.
+26. `--csl <file>` registers a custom CSL style, renders the draft with it, and
+    stores the XML so queue re-renders keep the same style.
+27. The web server binds `127.0.0.1`, serves the built web app, and requires the
+    session token for state-changing requests.
+28. The web UI can list sources, record screening decisions, show evidence and
+    drafts, and restore or accept held sentences.
 
 ## 18. Open questions
 
@@ -1109,3 +1150,4 @@ behaviour changes.
 | v0.1 scaffold | 2026-11-11 | `packages/core` and `packages/cli`: project schema, OpenAlex and Crossref retrieval, cite-sight adapter, citability, RRF ranking, exports, payload-integrity replay; `node:sqlite` |
 | v0.2 (partial) | 2026-11-11 | CI workflow, YAML brief parser, append-only human screening with separate suggestions, priority tiers, exclusion flags, CSV/JSON round-trip, and human-confirmed extraction with separate suggestions |
 | v0.3 (partial) | 2026-11-11 | Evidence bundle, template and local-model writers, deterministic checks 1–5, optional support pass, citeproc citation styles, held-sentence review queue with draft revisions; human-confirmed stance, argument maps, and a separate counter-evidence search run |
+| v0.4 (partial) | 2026-11-11 | Semantic Scholar citation chasing, custom CSL files, and a localhost React/Vite web UI for sources, evidence, drafts and the hold queue |

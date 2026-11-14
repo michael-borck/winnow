@@ -21,7 +21,7 @@ export interface JsonResponse {
 export async function fetchJson(
   url: string,
   provider: string,
-  options: { mailto?: string; timeoutMs?: number } = {},
+  options: { mailto?: string; timeoutMs?: number; apiKey?: string } = {},
 ): Promise<JsonResponse> {
   const timeoutMs = options.timeoutMs ?? 20_000;
   let response: Response;
@@ -31,6 +31,7 @@ export async function fetchJson(
       headers: {
         Accept: 'application/json',
         'User-Agent': `Winnow/0.1${options.mailto ? ` (mailto:${options.mailto})` : ''}`,
+        ...(options.apiKey ? { 'x-api-key': options.apiKey } : {}),
       },
       signal: AbortSignal.timeout(timeoutMs),
     });

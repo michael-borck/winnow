@@ -10,10 +10,18 @@ export { verifyDoi, verifySource, type VerifyOptions, type VerifiedDoi } from '.
 export { retrieve, matchesType, normaliseSourceType, type RetrieveOptions } from './retrieval/index.js';
 export { retrieveOpenAlex, abstractFromInvertedIndex } from './retrieval/openalex.js';
 export { retrieveCrossref } from './retrieval/crossref.js';
+export {
+  fetchCitationCandidates,
+  sampleCitationCandidates,
+  hasCriticalContext,
+  type CitationChaseOptions,
+  type CitationChaseProviderResult,
+} from './retrieval/semanticScholar.js';
 
 export { dedupeCandidates } from './pipeline/dedupe.js';
 export { rankCandidates } from './pipeline/rank.js';
 export { searchLiterature } from './pipeline/search.js';
+export { runCitationChase } from './pipeline/citation-chase.js';
 
 export {
   loadScreeningState,
@@ -191,6 +199,8 @@ export {
   saveDraft,
   getDraft,
   getLatestDraft,
+  listRuns,
+  listDrafts,
   recordStance,
   recordStanceSuggestion,
   getCurrentStances,
@@ -231,6 +241,7 @@ export { sourceIdFor, firstAuthorSurname, stableHash, shortHash } from './text/i
 export { mapLimit } from './util/async.js';
 export {
   normaliseStyle,
+  registerCslStyle,
   sourceToCsl,
   formatCitation,
   formatBibliography,

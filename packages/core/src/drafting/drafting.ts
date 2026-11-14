@@ -7,7 +7,6 @@ import { isCitable } from '../verification/citability.js';
 import {
   formatBibliography,
   formatCitation,
-  type CitationStyle,
 } from '../citation/csl.js';
 import { normaliseText } from '../text/normalise.js';
 import { firstAuthorSurname, shortHash } from '../text/ids.js';
@@ -150,7 +149,8 @@ export interface StructuredDraft {
   writer: 'template' | 'model';
   model?: string;
   fields: string[];
-  citationStyle?: CitationStyle;
+  citationStyle?: string;
+  citationStyleXml?: string;
   title: string;
   sentences: DraftSentence[];
   argumentMap?: ArgumentMap;
@@ -670,7 +670,7 @@ export function checkDraft(
 export function renderDraftMarkdown(
   bundle: EvidenceBundle,
   draft: StructuredDraft,
-  style: CitationStyle = 'apa',
+  style: string = 'apa',
 ): string {
   const kept = draft.sentences.filter(
     (item) => item.status === 'kept' || item.status === 'kept_marked',
@@ -841,7 +841,7 @@ function warningNotice(notices: IntegrityNotice[]): string | undefined {
 function renderSentence(
   item: DraftSentence,
   sources: Map<string, EvidenceSource>,
-  style: CitationStyle,
+  style: string,
 ): string {
   const cited = item.citations
     .map((id) => sources.get(id))
