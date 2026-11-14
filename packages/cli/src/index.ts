@@ -49,6 +49,7 @@ import {
   loadExtractionState,
   loadScreeningState,
   loadStanceState,
+  normaliseStyle,
   openProject,
   parseExtractionValues,
   parseScreeningDecisions,
@@ -77,6 +78,7 @@ import {
   ModelError,
   ScreeningError,
   StanceError,
+  CitationError,
   type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
@@ -158,6 +160,7 @@ interface ReviewCliOptions {
   baseUrl?: string;
   support?: boolean;
   supportModel?: string;
+  style?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -186,6 +189,7 @@ interface ArgueCliOptions {
   baseUrl?: string;
   support?: boolean;
   supportModel?: string;
+  style?: string;
   format: string;
   out?: string;
   save: boolean;
@@ -787,6 +791,7 @@ program
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
+  .option('--style <style>', 'apa, vancouver or harvard', 'apa')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -804,6 +809,7 @@ program
           baseUrl: options.baseUrl,
         })
       : undefined;
+    const style = normaliseStyle(options.style ?? 'apa');
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -866,7 +872,7 @@ program
           );
         }
       }
-      const markdown = renderDraftMarkdown(bundle, checked);
+      const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
       if (options.save) {
@@ -890,6 +896,7 @@ program
       if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
       if (error instanceof ModelError) throw new UsageError(error.message);
+      if (error instanceof CitationError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();
@@ -908,6 +915,7 @@ program
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
+  .option('--style <style>', 'apa, vancouver or harvard', 'apa')
   .option('--format <format>', 'markdown or json', 'markdown')
   .option('--out <file>', 'write output to a file')
   .option('--no-save', 'do not store the draft in the project database')
@@ -926,6 +934,7 @@ program
           baseUrl: options.baseUrl,
         })
       : undefined;
+    const style = normaliseStyle(options.style ?? 'apa');
     const fields = parseFields(options.fields);
     const root = await requireProjectRoot(projectArg);
     const project = await openProject(root);
@@ -998,7 +1007,7 @@ program
           );
         }
       }
-      const markdown = renderDraftMarkdown(bundle, checked);
+      const markdown = renderDraftMarkdown(bundle, checked, style);
 
       let draftId: string | null = null;
       if (options.save) {
@@ -1023,6 +1032,7 @@ program
       if (error instanceof DraftError) throw new UsageError(error.message);
       if (error instanceof ExtractionError) throw new UsageError(error.message);
       if (error instanceof ModelError) throw new UsageError(error.message);
+      if (error instanceof CitationError) throw new UsageError(error.message);
       throw error;
     } finally {
       project.db.close();

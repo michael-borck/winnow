@@ -4,6 +4,11 @@ import type { Brief } from '../brief/brief.js';
 import { loadExtractionState } from '../extraction/extraction.js';
 import { loadStanceState } from '../stance/stance.js';
 import { isCitable } from '../verification/citability.js';
+import {
+  formatBibliography,
+  formatCitation,
+  type CitationStyle,
+} from '../citation/csl.js';
 import { normaliseText } from '../text/normalise.js';
 import { firstAuthorSurname, shortHash } from '../text/ids.js';
 
@@ -82,6 +87,7 @@ export interface EvidenceSource {
   year: number | null;
   doi?: string;
   venue?: string;
+  type?: string;
   citability: Citability;
   integrity: IntegrityNotice[];
   stance?: ScreeningStance;
@@ -199,6 +205,7 @@ export function buildEvidenceBundle(
       year: row.source.year,
       ...(row.source.doi ? { doi: row.source.doi } : {}),
       ...(row.source.venue ? { venue: row.source.venue } : {}),
+      ...(row.source.type ? { type: row.source.type } : {}),
       citability: row.citability,
       integrity: row.verification.integrity,
       ...(row.relevance ? { relevance: row.relevance } : {}),
@@ -649,6 +656,7 @@ export function checkDraft(
 export function renderDraftMarkdown(
   bundle: EvidenceBundle,
   draft: StructuredDraft,
+  style: CitationStyle = 'apa',
 ): string {
   const kept = draft.sentences.filter(
     (item) => item.status === 'kept' || item.status === 'kept_marked',
@@ -696,7 +704,7 @@ export function renderDraftMarkdown(
       lines.push(`## ${section}`, '');
     }
     for (const citation of item.citations) cited.add(citation);
-    const rendered = renderSentence(item, sourcesById);
+    const rendered = renderSentence(item, sourcesById, style);
     lines.push(
       item.status === 'kept_marked' ? `${rendered} [partial support]` : rendered,
       '',
@@ -736,10 +744,11 @@ export function renderDraftMarkdown(
   }
 
   lines.push('## References', '');
-  for (const id of [...cited]) {
-    const source = sourcesById.get(id);
-    if (!source) continue;
-    lines.push(`- ${reference(source)}`);
+  const citedSources = [...cited]
+    .map((id) => sourcesById.get(id))
+    .filter((source): source is EvidenceSource => Boolean(source));
+  for (const entry of formatBibliography(citedSources, style)) {
+    lines.push(`- ${entry}`);
   }
   lines.push('');
 
@@ -811,26 +820,24 @@ function warningNotice(notices: IntegrityNotice[]): string | undefined {
 function renderSentence(
   item: DraftSentence,
   sources: Map<string, EvidenceSource>,
+  style: CitationStyle,
 ): string {
-  let text = item.text;
-  for (const id of item.citations) {
-    const source = sources.get(id);
-    if (!source) continue;
-    text = text.replaceAll(`{{cite:${id}}}`, citationLabel(source));
-  }
-  return text;
-}
+  const cited = item.citations
+    .map((id) => sources.get(id))
+    .filter((source): source is EvidenceSource => Boolean(source));
+  const citation = formatCitation(cited, style);
+  let first = true;
 
-function citationLabel(source: EvidenceSource): string {
-  const surname = firstAuthorSurname(source.authors[0]) || 'Anon';
-  const label = source.authors.length > 1 ? `${surname} et al.` : surname;
-  return `(${label}, ${source.year ?? 'n.d.'})`;
-}
-
-function reference(source: EvidenceSource): string {
-  const authors = source.authors.length ? source.authors.join(', ') : 'Unknown';
-  const doi = source.doi ? ` https://doi.org/${source.doi}` : '';
-  return `${authors} (${source.year ?? 'n.d.'}). ${source.title}. ${source.venue ?? ''}${doi}`.trim();
+  return item.text
+    .replace(/\{\{cite:[^}]+\}\}/g, () => {
+      if (first && citation) {
+        first = false;
+        return citation;
+      }
+      return '';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function stripCitationTokens(text: string): string {

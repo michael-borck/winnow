@@ -23,3 +23,4 @@ consequences.
 | [0015](0015-stance-and-counter-evidence.md) | Human stance, derived argument map, separate counter-evidence run |
 | [0016](0016-model-writer.md) | Model writer behind the same deterministic checks |
 | [0017](0017-support-check.md) | Support check holds sentences; it never deletes them |
+| [0018](0018-citeproc-styles.md) | Citeproc renders citations; source IDs remain the contract |

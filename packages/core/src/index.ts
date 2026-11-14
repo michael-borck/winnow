@@ -216,3 +216,12 @@ export {
 export { normaliseText, normaliseTitle, normaliseDoi } from './text/normalise.js';
 export { sourceIdFor, firstAuthorSurname, stableHash, shortHash } from './text/ids.js';
 export { mapLimit } from './util/async.js';
+export {
+  normaliseStyle,
+  sourceToCsl,
+  formatCitation,
+  formatBibliography,
+  CitationError,
+  type CitationStyle,
+  type CslSource,
+} from './citation/csl.js';

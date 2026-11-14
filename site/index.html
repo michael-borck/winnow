@@ -198,6 +198,7 @@
       <span>Stance + argument map</span>
       <span>Template + model writer</span>
       <span>Support triage</span>
+      <span>Citeproc styles</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
@@ -268,8 +269,9 @@
             model that sees only the evidence bundle; malformed output is
             rejected and every sentence still runs through the same checks. A
             separate support pass can mark partial statements and hold
-            unsupported ones for review. Everything lives in one SQLite
-            database, with raw provider payloads kept for replay.
+            unsupported ones for review. Citations and references render through
+            citeproc in APA, Vancouver or Harvard. Everything lives in one
+            SQLite database, with raw provider payloads kept for replay.
           </p>
           <p class="note">
             Search saves to the nearest project by default. Use
@@ -304,6 +306,7 @@ winnow extract . --format csv --out exports/evidence.csv
 winnow review . --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --support --out drafts/review.md
+winnow review . --style vancouver --out drafts/review.md
 
 <span class="comment"># stance, argument map, counter-evidence pass</span>
 winnow stance . --thesis "Retrieval improves accuracy." --suggest

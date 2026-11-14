@@ -13,8 +13,9 @@ The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.3 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `verify` and
-`replay`; a template or local-model writer is available, while citeproc styles,
-citation chasing and the web/desktop surfaces are next. v1 targets structured
+`replay`; template or local-model writers, support triage, and citeproc-based
+APA/Vancouver/Harvard styles are available. Citation chasing, custom CSL files,
+the review queue and the web/desktop surfaces are next. v1 targets structured
 narrative and scoping reviews, not systematic reviews. See [SPEC.md](SPEC.md)
 and [docs/reviews](docs/reviews/README.md).
 
@@ -144,6 +145,7 @@ sentences are listed with the check that failed.
 winnow review . --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --out drafts/review.md
 winnow review . --writer model --model qwen3:8b --support --out drafts/review.md
+winnow review . --style vancouver --out drafts/review.md
 winnow review . --format json --out drafts/review.json
 ```
 
@@ -163,6 +165,11 @@ checked against its quotes and labelled `supported`, `partial`, `unsupported`
 or `contradicted`. Unsupported and contradicted sentences are held out of the
 draft and listed for review; partial support is marked inline. A failed support
 call leaves the sentence in place and reports that the check did not run.
+
+`--style` renders in-text citations and the reference list with citeproc:
+`apa` (default), `vancouver` or `harvard`. The CSL engine is citation-js, so
+chapter, report, thesis and conference types map correctly. Custom CSL files are
+the next step.
 
 ## Stance and argument
 
@@ -209,7 +216,7 @@ winnow counter . --topic "retrieval augmented generation" \
   includes are extracted.
 - `winnow review` — evidence bundle, template or local-model writer,
   deterministic checks 1–5, optional support entailment pass, kept/marked/held/
-  dropped report, references and an evidence appendix.
+  dropped report, citeproc citations and an evidence appendix.
 - `winnow stance` — human stance labels relative to a thesis, separate heuristic
   suggestions, and CSV/JSON import-export.
 - `winnow argue` — argument map and draft with supporting, opposing, mixed and
@@ -222,13 +229,15 @@ winnow counter . --topic "retrieval augmented generation" \
 - `winnow replay` — filesystem payload checks plus a deterministic snapshot
   hash comparison.
 - Unit and integration tests across briefs, screening, extraction, stance,
-  drafting, argument maps, model output validation, support triage, citability,
-  dedupe, ranking, formatting, project lifecycle, database updates and replay.
+  drafting, argument maps, model output validation, support triage, citation
+  styles, citability, dedupe, ranking, formatting, project lifecycle, database
+  updates and replay.
 
-Not yet: citeproc-based citation styles, citation chasing for counter-evidence,
-link probing during search (use `--check-links`), full replay that re-normalises
-stored payloads (current replay verifies payload hashes and re-derives the
-stored snapshot), the local web UI and the desktop shell.
+Not yet: citation chasing for counter-evidence, custom CSL file styles, a review
+queue to restore held sentences, link probing during search (use
+`--check-links`), full replay that re-normalises stored payloads (current replay
+verifies payload hashes and re-derives the stored snapshot), the local web UI
+and the desktop shell.
 
 ## Why another literature tool
 
