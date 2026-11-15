@@ -4,6 +4,15 @@ External reviews of the specification. Reviews are evidence, not normative
 text: the spec changes only when a recommendation is accepted into `SPEC.md`
 or an ADR.
 
+## The method in card form
+
+**The Review Deck** — <https://michael-borck.github.io/review-deck/>
+
+Twenty-four cards in eight stages, from the boundary decisions to the audited
+paragraph. A free, tool-neutral companion to Winnow: print it, put it beside the
+review, and use it to find the stage that will fail. Cards, print layouts and
+provenance: <https://github.com/michael-borck/review-deck>.
+
 ## 2026-11-11 — Specification audit
 
 **Document:** [2026-11-11-spec-audit.md](2026-11-11-spec-audit.md)
