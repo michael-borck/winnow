@@ -11,6 +11,8 @@ import {
   saveRunSources,
 } from '../src/project/db.js';
 import { recordExtraction } from '../src/extraction/extraction.js';
+import { recordStanceDecision } from '../src/stance/stance.js';
+import type { Brief } from '../src/brief/brief.js';
 import {
   buildEvidenceBundle,
   checkDraft,
@@ -114,6 +116,57 @@ async function projectWithEvidence(): Promise<{
     quote: 'We surveyed 120 students in a randomized experiment.',
     reviewer: 'ada',
   });
+
+  return { db: project.db, runId };
+}
+
+function secondSource(): RankedSource {
+  return {
+    ...source(),
+    source: {
+      ...source().source,
+      id: 'doi:10.1/b',
+      title: 'A study of synthesis',
+      doi: '10.1/b',
+      abstract:
+        'We surveyed 80 students in a controlled experiment. The results show that retrieval reduces errors. A limitation is the short follow-up.',
+    },
+    rank: 2,
+    rrfScore: 1 / 62,
+    providers: [{ provider: 'openalex', rank: 2 }],
+  };
+}
+
+async function projectWithTwoSources(): Promise<{
+  db: ReturnType<typeof initProject> extends Promise<infer P> ? P['db'] : never;
+  runId: string;
+}> {
+  const parent = await temporaryDirectory();
+  const project = await initProject('demo', parent);
+  const runId = 'run-draft-2';
+  createRun(project.db, { id: runId, query: 'testing', config: {} });
+  saveRunSources(project.db, runId, 'testing', [source(), secondSource()]);
+
+  for (const [sourceId, value] of [
+    ['doi:10.1/a', 'The results show that retrieval improves accuracy.'],
+    ['doi:10.1/b', 'The results show that retrieval reduces errors.'],
+  ] as const) {
+    recordScreeningDecision(project.db, {
+      runId,
+      sourceId,
+      decision: 'include',
+      relevance: 'core',
+      reviewer: 'ada',
+    });
+    recordExtraction(project.db, {
+      runId,
+      sourceId,
+      field: 'finding',
+      value,
+      quote: value,
+      reviewer: 'ada',
+    });
+  }
 
   return { db: project.db, runId };
 }
@@ -297,6 +350,202 @@ describe('template draft and checks', () => {
     const stored = getDraft(db, row.id);
     expect(stored?.markdown).toContain('(Lovelace, 2024)');
     expect(JSON.parse(stored!.structured_json).mode).toBe('review');
+
+    db.close();
+  });
+});
+
+describe('quote spans and framing', () => {
+  it('drops an evidence sentence when the declared quote span points elsewhere', async () => {
+    const { db, runId } = await projectWithEvidence();
+    const bundle = buildEvidenceBundle(db, runId, ['finding']);
+    const claim = bundle.claims[0]!;
+    const draft = customDraft(bundle, {
+      id: 'sentence-span',
+      text: '{{cite:doi:10.1/a}} A claim.',
+      type: 'evidence',
+      section: 'Finding',
+      citations: ['doi:10.1/a'],
+      quotes: [
+        {
+          sourceId: 'doi:10.1/a',
+          quote: claim.quote,
+          start: 0,
+          end: 5,
+        },
+      ],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('dropped');
+    expect(
+      checked.checks.find((item) => item.check.startsWith('3.'))?.message,
+    ).toContain('span mismatch');
+
+    db.close();
+  });
+
+  it('drops a framing sentence that names a study', async () => {
+    const { db, runId } = await projectWithEvidence();
+    const bundle = buildEvidenceBundle(db, runId, ['finding']);
+    const draft = customDraft(bundle, {
+      id: 'sentence-framing-title',
+      text: 'A study of retrieval reports the main finding.',
+      type: 'framing',
+      section: 'Overview',
+      citations: [],
+      quotes: [],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('dropped');
+    expect(
+      checked.checks.find((item) => item.check.startsWith('4.'))?.message,
+    ).toContain('study titles');
+
+    db.close();
+  });
+
+  it('drops a framing sentence with a citation token', async () => {
+    const { db, runId } = await projectWithEvidence();
+    const bundle = buildEvidenceBundle(db, runId, ['finding']);
+    const draft = customDraft(bundle, {
+      id: 'sentence-framing-citation',
+      text: 'See {{cite:doi:10.1/a}} for details.',
+      type: 'framing',
+      section: 'Overview',
+      citations: [],
+      quotes: [],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('dropped');
+    expect(
+      checked.checks.find((item) => item.check.startsWith('4.'))?.message,
+    ).toContain('citations');
+
+    db.close();
+  });
+
+  it('reports a citation rendering fallback', async () => {
+    const { db, runId } = await projectWithEvidence();
+    const bundle = buildEvidenceBundle(db, runId, ['finding']);
+    const draft = checkDraft(bundle, generateTemplateDraft(bundle));
+    const markdown = renderDraftMarkdown(bundle, draft, 'not-a-style');
+
+    expect(markdown).toContain('*Citation rendering fell back to source IDs.*');
+
+    db.close();
+  });
+});
+
+describe('stance-aware synthesis', () => {
+  const thesis = 'Retrieval improves accuracy.';
+
+  it('keeps disagreement when cited sources have differing stances', async () => {
+    const { db, runId } = await projectWithTwoSources();
+    recordStanceDecision(db, {
+      runId,
+      sourceId: 'doi:10.1/a',
+      thesis,
+      label: 'supports',
+      reviewer: 'ada',
+    });
+    recordStanceDecision(db, {
+      runId,
+      sourceId: 'doi:10.1/b',
+      thesis,
+      label: 'opposes',
+      reviewer: 'ada',
+    });
+
+    const bundle = buildEvidenceBundle(db, runId, ['finding'], {
+      thesis,
+    } as unknown as Brief);
+    expect(
+      bundle.sources.find((item) => item.id === 'doi:10.1/a')?.stance,
+    ).toBe('supports');
+    expect(
+      bundle.sources.find((item) => item.id === 'doi:10.1/b')?.stance,
+    ).toBe('opposes');
+
+    const draft = customDraft(bundle, {
+      id: 'synthesis-differ',
+      text: 'The evidence disagrees. {{cite:doi:10.1/a}} {{cite:doi:10.1/b}}',
+      type: 'synthesis',
+      section: 'Synthesis',
+      citations: ['doi:10.1/a', 'doi:10.1/b'],
+      quotes: [],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('kept');
+
+    db.close();
+  });
+
+  it('drops disagreement when cited sources share a stance', async () => {
+    const { db, runId } = await projectWithTwoSources();
+    for (const sourceId of ['doi:10.1/a', 'doi:10.1/b']) {
+      recordStanceDecision(db, {
+        runId,
+        sourceId,
+        thesis,
+        label: 'supports',
+        reviewer: 'ada',
+      });
+    }
+
+    const bundle = buildEvidenceBundle(db, runId, ['finding'], {
+      thesis,
+    } as unknown as Brief);
+    const draft = customDraft(bundle, {
+      id: 'synthesis-same',
+      text: 'The evidence disagrees. {{cite:doi:10.1/a}} {{cite:doi:10.1/b}}',
+      type: 'synthesis',
+      section: 'Synthesis',
+      citations: ['doi:10.1/a', 'doi:10.1/b'],
+      quotes: [],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('dropped');
+    expect(
+      checked.checks.find((item) => item.check.startsWith('5.'))?.message,
+    ).toContain('differing stances');
+
+    db.close();
+  });
+
+  it('keeps a two-source synthesis when no stance labels are recorded', async () => {
+    const { db, runId } = await projectWithTwoSources();
+    const bundle = buildEvidenceBundle(db, runId, ['finding'], {
+      thesis,
+    } as unknown as Brief);
+
+    const draft = customDraft(bundle, {
+      id: 'synthesis-unlabelled',
+      text: 'The evidence disagrees. {{cite:doi:10.1/a}} {{cite:doi:10.1/b}}',
+      type: 'synthesis',
+      section: 'Synthesis',
+      citations: ['doi:10.1/a', 'doi:10.1/b'],
+      quotes: [],
+      status: 'kept',
+      checks: [],
+    });
+
+    const checked = checkDraft(bundle, draft).sentences[0]!;
+    expect(checked.status).toBe('kept');
 
     db.close();
   });

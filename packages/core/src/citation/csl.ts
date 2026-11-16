@@ -71,6 +71,7 @@ export function sourceToCsl(source: CslSource): Record<string, unknown> {
 export function formatCitation(
   sources: CslSource[],
   style: string,
+  onFallback?: () => void,
 ): string {
   if (!sources.length) return '';
   try {
@@ -86,6 +87,7 @@ export function formatCitation(
       }),
     ).trim();
   } catch {
+    onFallback?.();
     return `(${sources.map((source) => source.id).join('; ')})`;
   }
 }
@@ -93,6 +95,7 @@ export function formatCitation(
 export function formatBibliography(
   sources: CslSource[],
   style: string,
+  onFallback?: () => void,
 ): string[] {
   if (!sources.length) return [];
   try {
@@ -110,6 +113,7 @@ export function formatBibliography(
       .map((line) => line.trim())
       .filter(Boolean);
   } catch {
+    onFallback?.();
     return sources.map(
       (source) =>
         `${source.authors.join(', ') || 'Unknown'} (${source.year ?? 'n.d.'}). ${source.title}.`,

@@ -80,7 +80,7 @@ Every sentence is tagged as evidence, synthesis, coverage, or framing. Checks 1 
 2. IDs. Every cited ID is in the bundle and citable. A warned source has its integrity notice in the same sentence.
 3. Quotes. Each quote occurs in the normalised stored source text. No fuzzy matching.
 4. Numbers. Every number in an evidence or synthesis sentence appears in one of its quotes. Coverage numbers must match a recomputed corpus query. Framing sentences contain no numbers, study names, or citations.
-5. Synthesis shape. A synthesis sentence must cite at least two distinct sources. If it claims disagreement, the cited sources must carry differing stance labels.
+5. Synthesis shape. A synthesis sentence must cite at least two distinct sources. If it claims disagreement and the cited sources have stance labels, those labels must differ. Without stance labels, the check requires two sources but cannot verify disagreement.
 
 `--support` adds a separate entailment check. The support model returns supported, partial, unsupported, or contradicted. It is a suggestion, not a gate. Unsupported and contradicted sentences are held and listed for review. Partial support is marked inline. If the support call fails, the sentence stays and the draft says the check did not run.
 
@@ -98,7 +98,7 @@ This is reproducibility as an audit trail. It is not a promise that a live searc
 
 The v0.5 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell. A few guarantees are specified but not yet enforced:
 
-- Quote checking verifies that a quote occurs in the stored source text. Span-exact matching and source-text hash pinning are specified, not yet in the bundle.
+- Quote checking verifies the quote at its declared span in the normalised source text. Source-text hash pinning is specified, not yet stored.
 - The Weigh step is specified. Study design, quality flags, and coverage counts are not yet computed as a separate command.
 - A per-project consent gate with a payload preview is specified for cloud models. v0.5 prints a warning when the model endpoint is not local.
 - Independent duplicate extraction, exhaustive search mode, installers, and notarization are not implemented.

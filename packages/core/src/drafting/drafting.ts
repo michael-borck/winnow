@@ -38,6 +38,8 @@ export interface DraftQuote {
   sourceId: string;
   quote: string;
   location?: string;
+  start?: number;
+  end?: number;
 }
 
 export interface DraftCoverage {
@@ -85,6 +87,8 @@ export interface EvidenceClaim {
   value: string;
   quote: string;
   location?: string;
+  quoteStart?: number;
+  quoteEnd?: number;
 }
 
 export interface EvidenceSource {
@@ -180,8 +184,19 @@ export function buildEvidenceBundle(
   const sources: EvidenceSource[] = [];
   const unquoted: Array<{ sourceId: string; field: string; value: string }> = [];
 
+  const stanceById = new Map<string, ScreeningStance>();
+  if (brief?.thesis) {
+    const stance = loadStanceState(db, runId, brief.thesis, { all: true });
+    for (const item of stance.sources) {
+      if (item.stance) stanceById.set(item.source.id, item.stance);
+    }
+  }
+
   for (const row of state.rows) {
     const sourceFields: string[] = [];
+    const stance = stanceById.get(row.source.id);
+    const normalisedSource = normaliseText(row.source.abstract ?? '');
+
     for (const field of fields) {
       const value = row.values[field];
       if (!value) continue;
@@ -193,6 +208,14 @@ export function buildEvidenceBundle(
         unquoted.push({ sourceId: row.source.id, field, value });
         continue;
       }
+
+      const normalisedQuote = normaliseText(quote);
+      const quoteStart = normalisedQuote
+        ? normalisedSource.indexOf(normalisedQuote)
+        : -1;
+      const quoteEnd =
+        quoteStart >= 0 ? quoteStart + normalisedQuote.length : undefined;
+
       claims.push({
         id: `claim-${shortHash(`${row.source.id}|${field}|${value}|${quote}`)}`,
         sourceId: row.source.id,
@@ -202,10 +225,12 @@ export function buildEvidenceBundle(
         ...(row.source.doi ? { doi: row.source.doi } : {}),
         citability: row.citability,
         integrity: row.verification.integrity,
+        ...(stance ? { stance } : {}),
         field,
         value,
         quote,
         ...(row.locations[field] ? { location: row.locations[field] } : {}),
+        ...(quoteStart >= 0 && quoteEnd != null ? { quoteStart, quoteEnd } : {}),
       });
     }
 
@@ -219,6 +244,7 @@ export function buildEvidenceBundle(
       ...(row.source.type ? { type: row.source.type } : {}),
       citability: row.citability,
       integrity: row.verification.integrity,
+      ...(stance ? { stance, stanceConfirmed: true } : {}),
       ...(row.relevance ? { relevance: row.relevance } : {}),
       rank: row.rank,
       fields: sourceFields,
@@ -290,13 +316,7 @@ export function generateTemplateDraft(
           type: 'evidence',
           section,
           citations: [claim.sourceId],
-          quotes: [
-            {
-              sourceId: claim.sourceId,
-              quote: claim.quote,
-              ...(claim.location ? { location: claim.location } : {}),
-            },
-          ],
+          quotes: [quoteFor(claim)],
         }),
       );
     }
@@ -484,13 +504,7 @@ export function generateArgumentDraft(
           type: 'evidence',
           section: group.label,
           citations: [claim.sourceId],
-          quotes: [
-            {
-              sourceId: claim.sourceId,
-              quote: claim.quote,
-              ...(claim.location ? { location: claim.location } : {}),
-            },
-          ],
+          quotes: [quoteFor(claim)],
         }),
       );
     }
@@ -543,6 +557,13 @@ export function checkDraft(
   draft: StructuredDraft,
 ): StructuredDraft {
   const sources = new Map(bundle.sources.map((source) => [source.id, source]));
+  const claimsByQuote = new Map<string, EvidenceClaim>();
+  for (const claim of bundle.claims) {
+    claimsByQuote.set(
+      `${claim.sourceId}\u0000${normaliseText(claim.quote)}`,
+      claim,
+    );
+  }
 
   const checked = draft.sentences.map((item) => {
     const checks: DraftCheckResult[] = [];
@@ -599,8 +620,27 @@ export function checkDraft(
         quoteFailures.push(`${quote.sourceId}: no stored source text`);
         continue;
       }
-      if (!normaliseText(source.abstract).includes(normaliseText(quote.quote))) {
-        quoteFailures.push(`${quote.sourceId}: quote not found`);
+
+      const normalisedQuote = normaliseText(quote.quote);
+      const claim = claimsByQuote.get(
+        `${quote.sourceId}\u0000${normalisedQuote}`,
+      );
+
+      const sourceText = normaliseText(source.abstract);
+      let start = quote.start ?? claim?.quoteStart;
+      let end = quote.end ?? claim?.quoteEnd;
+      if (start == null || end == null) {
+        const found = normalisedQuote ? sourceText.indexOf(normalisedQuote) : -1;
+        if (found < 0) {
+          quoteFailures.push(`${quote.sourceId}: quote not found`);
+          continue;
+        }
+        start = found;
+        end = found + normalisedQuote.length;
+      }
+
+      if (sourceText.slice(start, end) !== normalisedQuote) {
+        quoteFailures.push(`${quote.sourceId}: quote span mismatch`);
       }
     }
     checks.push(
@@ -628,8 +668,17 @@ export function checkDraft(
       numbersOk = wrong.length === 0;
       if (!numbersOk) numbersMessage = `coverage numbers do not match: ${wrong.join(', ')}`;
     } else if (item.type === 'framing') {
-      numbersOk = numbers.length === 0;
-      if (!numbersOk) numbersMessage = 'framing sentences must not contain numbers';
+      const framingText = normaliseText(plain);
+      const hasCitationToken = /\{\{cite:[^}]+\}\}/.test(item.text);
+      const hasStudyTitle = [...sources.values()].some((source) => {
+        const title = normaliseText(source.title);
+        return title.length >= 10 && framingText.includes(title);
+      });
+      numbersOk = numbers.length === 0 && !hasCitationToken && !hasStudyTitle;
+      if (!numbersOk) {
+        numbersMessage =
+          'framing sentences must not contain numbers, citations or study titles';
+      }
     }
     checks.push(check('4. numbers', numbersOk, numbersMessage));
 
@@ -647,10 +696,12 @@ export function checkDraft(
       const labels = [...uniqueCitations]
         .map((id) => sources.get(id)?.stance)
         .filter((label): label is ScreeningStance => Boolean(label));
-      synthesisOk = labels.length >= 2 && new Set(labels).size >= 2;
-      synthesisMessage = synthesisOk
-        ? undefined
-        : 'disagreement language needs two sources with differing stances';
+      if (labels.length >= 2) {
+        synthesisOk = new Set(labels).size >= 2;
+        synthesisMessage = synthesisOk
+          ? undefined
+          : 'disagreement language needs two sources with differing stances';
+      }
     }
     checks.push(check('5. synthesis shape', synthesisOk, synthesisMessage));
 
@@ -679,6 +730,10 @@ export function renderDraftMarkdown(
   const dropped = draft.sentences.filter((item) => item.status === 'dropped');
   const sourcesById = new Map(bundle.sources.map((source) => [source.id, source]));
   const cited = new Set<string>();
+  let citationFallback = false;
+  const noteCitationFallback = () => {
+    citationFallback = true;
+  };
 
   const lines: string[] = [`# ${draft.title}`, ''];
 
@@ -718,7 +773,12 @@ export function renderDraftMarkdown(
       lines.push(`## ${section}`, '');
     }
     for (const citation of item.citations) cited.add(citation);
-    const rendered = renderSentence(item, sourcesById, style);
+    const rendered = renderSentence(
+      item,
+      sourcesById,
+      style,
+      noteCitationFallback,
+    );
     const marker =
       item.override?.action === 'restored'
         ? ` [restored by ${item.override.reviewer}]`
@@ -764,11 +824,20 @@ export function renderDraftMarkdown(
     lines.push('');
   }
 
-  lines.push('## References', '');
   const citedSources = [...cited]
     .map((id) => sourcesById.get(id))
     .filter((source): source is EvidenceSource => Boolean(source));
-  for (const entry of formatBibliography(citedSources, style)) {
+  const bibliography = formatBibliography(
+    citedSources,
+    style,
+    noteCitationFallback,
+  );
+
+  if (citationFallback) {
+    lines.push('*Citation rendering fell back to source IDs.*', '');
+  }
+  lines.push('## References', '');
+  for (const entry of bibliography) {
     lines.push(`- ${entry}`);
   }
   lines.push('');
@@ -831,6 +900,17 @@ function citationMarker(claim: EvidenceClaim): string {
   return '';
 }
 
+function quoteFor(claim: EvidenceClaim): DraftQuote {
+  return {
+    sourceId: claim.sourceId,
+    quote: claim.quote,
+    ...(claim.location ? { location: claim.location } : {}),
+    ...(claim.quoteStart != null && claim.quoteEnd != null
+      ? { start: claim.quoteStart, end: claim.quoteEnd }
+      : {}),
+  };
+}
+
 function warningNotice(notices: IntegrityNotice[]): string | undefined {
   if (notices.includes('retracted')) return 'retracted';
   if (notices.includes('withdrawn')) return 'withdrawn';
@@ -842,11 +922,12 @@ function renderSentence(
   item: DraftSentence,
   sources: Map<string, EvidenceSource>,
   style: string,
+  onCitationFallback?: () => void,
 ): string {
   const cited = item.citations
     .map((id) => sources.get(id))
     .filter((source): source is EvidenceSource => Boolean(source));
-  const citation = formatCitation(cited, style);
+  const citation = formatCitation(cited, style, onCitationFallback);
   let first = true;
 
   return item.text
