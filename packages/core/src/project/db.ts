@@ -659,6 +659,31 @@ export function finishRun(
   );
 }
 
+export function recordAuditEvent(
+  db: DatabaseSync,
+  input: {
+    runId?: string | null;
+    actor: 'system' | 'user' | 'model';
+    action: string;
+    payload: unknown;
+    at?: string;
+  },
+): string {
+  const id = randomUUID();
+  db.prepare(
+    `INSERT INTO audit_events (id, run_id, at, actor, action, payload_json)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    input.runId ?? null,
+    input.at ?? new Date().toISOString(),
+    input.actor,
+    input.action,
+    JSON.stringify(input.payload),
+  );
+  return id;
+}
+
 export function getRun(db: DatabaseSync, runId: string): RunRow | null {
   const row = db.prepare('SELECT * FROM runs WHERE id = ?').get(runId) as
     | RunRow

@@ -31,6 +31,7 @@ import {
   formatEvidenceTable,
   formatQueueJson,
   formatQueueTable,
+  formatRerunReport,
   formatScreeningCsv,
   formatScreeningJson,
   formatScreeningTable,
@@ -74,6 +75,8 @@ import {
   registerCslStyle,
   renderDraftMarkdown,
   replayRun,
+  rerunRun,
+  RerunError,
   restoreHeldSentence,
   runCitationChase,
   runSourceCounts,
@@ -246,6 +249,13 @@ interface ExportCliOptions {
   all?: boolean;
   format?: string;
   out?: string;
+}
+
+interface RerunCliOptions {
+  project?: string;
+  live?: boolean;
+  diff?: boolean;
+  format: string;
 }
 
 const program = new Command();
@@ -1484,6 +1494,44 @@ program
       const result = await replayRun(project.db, project.root, runId);
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       process.exitCode = result.ok ? 0 : 1;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
+  .command('rerun <runId>')
+  .description('Re-execute a run live and report drift')
+  .option('--project <path>', 'project directory or name (default: nearest project)')
+  .option('--live', 'run the live retrieval and comparison')
+  .option('--diff', 'list each added, removed or changed source')
+  .option('--format <format>', 'text or json', 'text')
+  .action(async (runId: string, options: RerunCliOptions) => {
+    if (!options.live) {
+      throw new UsageError(
+        'Use --live to re-execute; `winnow replay` re-derives from stored payloads.',
+      );
+    }
+    const format = parseFormat(options.format, ['text', 'json']);
+    const root = await requireProjectRoot(options.project);
+    const project = await openProject(root);
+
+    try {
+      const result = await rerunRun(project.db, runId, {
+        apiKey: process.env.SEMANTIC_SCHOLAR_API_KEY,
+      });
+      const output =
+        format === 'json'
+          ? `${JSON.stringify(result, null, 2)}\n`
+          : formatRerunReport(result, { diff: options.diff === true });
+      process.stdout.write(output);
+
+      if (result.failures.length) process.exitCode = 1;
+      else if (result.liveCount === 0) process.exitCode = 3;
+      else process.exitCode = 0;
+    } catch (error) {
+      if (error instanceof RerunError) throw new UsageError(error.message);
+      throw error;
     } finally {
       project.db.close();
     }

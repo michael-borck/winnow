@@ -90,7 +90,7 @@ The guarantee is narrow on purpose: every cited source passed verification, and 
 
 ### 9. Record what happened, and make replay possible
 
-A run stores provider payloads, provider failures, ranks, and decisions. `winnow replay` re-normalises the stored payloads, re-deduplicates, re-ranks with the stored verification, and compares a deterministic snapshot hash (ADR 0011, ADR 0024). The specification adds model artifacts, a gate-policy record, audit events, and `winnow rerun --live`, which re-executes and reports drift rather than pretending it reproduced the first run.
+A run stores provider payloads, provider failures, ranks, and decisions. `winnow replay` re-normalises the stored payloads, re-deduplicates, re-ranks with the stored verification, and compares a deterministic snapshot hash (ADR 0011, ADR 0024). `winnow rerun --live` re-executes the same query against current providers, compares the source set, ranks, selection, citability and verification, and records the comparison as an audit event. Model artifacts and a gate-policy record are specified.
 
 This is reproducibility as an audit trail. It is not a promise that a live search will return the same results tomorrow.
 
@@ -100,7 +100,6 @@ The v0.5 build implements retrieval, verification, screening, extraction, stance
 
 - Quote checking verifies that a quote occurs in the stored source text. Span-exact matching and source-text hash pinning are specified, not yet in the bundle.
 - The Weigh step is specified. Study design, quality flags, and coverage counts are not yet computed as a separate command.
-- `winnow rerun --live` is specified. Only `winnow replay` is implemented.
 - A per-project consent gate with a payload preview is specified for cloud models. v0.5 prints a warning when the model endpoint is not local.
 - Independent duplicate extraction, exhaustive search mode, installers, and notarization are not implemented.
 

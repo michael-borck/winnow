@@ -13,10 +13,11 @@ The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.5 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`,
-`verify` and `replay`; template or local-model writers, support triage, citeproc
-styles, citation chasing, custom CSL files, full payload replay, a local web UI
-and a desktop shell are available. Installers and notarization are next. v1
-targets structured narrative and scoping reviews, not systematic reviews. See
+`verify`, `replay` and `rerun`; template or local-model writers, support
+triage, citeproc styles, citation chasing, custom CSL files, full payload
+replay, a local web UI and a desktop shell are available. Installers and
+notarization are next. v1 targets structured narrative and scoping reviews, not
+systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -46,6 +47,7 @@ winnow counter . --of 10.1038/s41586-020-2649-2 --thesis "Retrieval improves acc
 winnow review . --csl journal.csl --out drafts/review.md
 winnow verify 10.1038/s41586-020-2649-2
 winnow replay <run-id>
+winnow rerun <run-id> --live --diff
 ```
 
 `search` retrieves from OpenAlex and Crossref by default, deduplicates by DOI,
@@ -54,6 +56,12 @@ ranks with reciprocal rank fusion before applying `--limit`. A run saves its
 raw provider payloads, sources, verification axes and ranked set to the
 project's SQLite database. `replay` re-derives the deterministic snapshot and
 compares hashes.
+
+`rerun <run-id> --live` re-executes the same query against current providers and
+reports drift: added, removed and changed sources, rank and selection changes,
+citability and verification changes, and provider failures. `--diff` lists each
+source, and `--format json` prints the full report. The comparison is recorded as
+an audit event on the original run.
 
 Formats: `--format table|json|csv|bibtex|csl`. A search without a project runs
 ephemerally; `--no-save` does the same inside a project. `--provider openalex`
@@ -323,6 +331,10 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   Crossref, Semantic Scholar), re-dedupes and re-ranks with the stored
   verification, and compares the snapshot hash. Corruption and drift are
   reported as problems.
+- `winnow rerun` — re-executes a run against current providers and reports
+  source, rank, selection, citability and verification drift. `--diff` lists
+  each change, `--format json` prints the full report, and the comparison is
+  stored as an audit event.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
   with a session token for writes. The Drafts tab can generate a template or
   model review, run support triage, use a named or custom CSL, and compare a
@@ -361,7 +373,7 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay |
+| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun |
 | Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
 | Desktop app | v0.5 in progress | Development shell around the local UI; installers next |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |

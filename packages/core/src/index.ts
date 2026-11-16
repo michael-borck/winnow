@@ -192,6 +192,7 @@ export {
   getCurrentScreening,
   recordScreeningDecision,
   recordScreeningSuggestion,
+  recordAuditEvent,
   getLatestSuggestions,
   recordExtractionValue,
   recordExtractionSuggestion,
@@ -226,6 +227,16 @@ export {
   replayRun,
   snapshotForRankedSources,
 } from './replay.js';
+
+export {
+  rerunRun,
+  compareRerun,
+  formatRerunReport,
+  RerunError,
+  type RerunResult,
+  type RerunSourceDiff,
+  type RerunOptions,
+} from './pipeline/rerun.js';
 
 export {
   formatTable,
