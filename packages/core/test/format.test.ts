@@ -5,7 +5,9 @@ import {
   formatCsl,
   formatCsv,
   formatSearchJson,
+  formatSourcesExport,
   formatTable,
+  type StoredSourcesExportOptions,
 } from '../src/export/format.js';
 
 function source(overrides: Partial<RankedSource> = {}): RankedSource {
@@ -135,5 +137,67 @@ describe('formatCsv and formatTable', () => {
     expect(formatTable([source()], false)).not.toContain(
       'This is the abstract of the study.',
     );
+  });
+});
+
+describe('formatSourcesExport', () => {
+  function options(
+    overrides: Partial<StoredSourcesExportOptions> = {},
+  ): StoredSourcesExportOptions {
+    return {
+      runId: 'run-1',
+      query: 'testing',
+      startedAt: '2026-11-11T00:00:00.000Z',
+      finishedAt: '2026-11-11T00:00:01.000Z',
+      identified: 3,
+      deduplicated: 2,
+      failures: [],
+      ranked: [source()],
+      selected: [source()],
+      ...overrides,
+    };
+  }
+
+  it('exports the selected subset with the run counts', () => {
+    const selected = source();
+    const unselected = source({ rank: 2, selected: false, citability: 'pending' });
+    const parsed = JSON.parse(
+      formatSourcesExport('json', options({
+        ranked: [selected, unselected],
+        selected: [selected],
+      })),
+    ) as {
+      runId: string;
+      retrieved: number;
+      unique: number;
+      selectedCount: number;
+      sources: Array<Record<string, unknown>>;
+    };
+
+    expect(parsed.runId).toBe('run-1');
+    expect(parsed.retrieved).toBe(3);
+    expect(parsed.unique).toBe(2);
+    expect(parsed.selectedCount).toBe(1);
+    expect(parsed.sources).toHaveLength(1);
+    expect(parsed.sources[0]!.selected).toBe(true);
+  });
+
+  it('keeps citation formats citable and shows the chosen rows in a table', () => {
+    const citable = source();
+    const pending = source({ rank: 2, selected: false, citability: 'pending' });
+
+    const bibtex = formatSourcesExport('bibtex', options({
+      ranked: [citable, pending],
+      selected: [citable, pending],
+    }));
+    expect(bibtex.match(/@article/g)).toHaveLength(1);
+    expect(bibtex).toContain('A study of things');
+
+    const table = formatSourcesExport('table', options({
+      ranked: [citable, pending],
+      selected: [citable, pending],
+    }));
+    expect(table).toContain('A study of things');
+    expect(table).toContain('This is the abstract of the study.');
   });
 });

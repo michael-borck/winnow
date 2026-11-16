@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.5 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, a localhost web UI, and an Electron shell
+**Implementation:** v0.1 scaffold plus v0.5 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, a localhost web UI, and an Electron shell
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.

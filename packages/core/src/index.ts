@@ -235,6 +235,8 @@ export {
   formatBibtex,
   formatCsl,
   formatSourceList,
+  formatSourcesExport,
+  type StoredSourcesExportOptions,
 } from './export/format.js';
 
 export { normaliseText, normaliseTitle, normaliseDoi } from './text/normalise.js';

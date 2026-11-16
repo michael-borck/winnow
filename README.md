@@ -12,11 +12,11 @@ into a grounded review draft with a citation on every claim.
 The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.5 in progress. The CLI implements `init`, `brief`, `search`,
-`screen`, `extract`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`
-and `replay`; template or local-model writers, support triage, citeproc styles,
-citation chasing, custom CSL files, full payload replay, a local web UI and a
-desktop shell are available. Installers and notarization are next. v1 targets
-structured narrative and scoping reviews, not systematic reviews. See
+`screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`,
+`verify` and `replay`; template or local-model writers, support triage, citeproc
+styles, citation chasing, custom CSL files, full payload replay, a local web UI
+and a desktop shell are available. Installers and notarization are next. v1
+targets structured narrative and scoping reviews, not systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -136,6 +136,25 @@ Fields default to `population,method,sample,finding,limitation,quote` and can
 be changed with `--fields`. The heuristic extractor is deliberately simple and
 explainable; a local model can add suggestions later without changing the
 confirmed-value store.
+
+## Export
+
+`winnow export` writes stored data without re-running the pipeline. It uses the
+latest completed run by default.
+
+```bash
+winnow export . --kind sources --format bibtex --out exports/sources.bib
+winnow export . --kind sources --format json --all --out exports/sources.json
+winnow export . --kind evidence --format csv --out exports/evidence.csv
+winnow export . --kind draft --format markdown --out drafts/review.md
+```
+
+`--kind` is `sources`, `evidence` or `draft`. Source exports default to JSON and
+accept `table`, `json`, `csv`, `bibtex` and `csl`; `--all` includes unselected
+sources. Evidence exports default to CSV and accept `table`, `json` and `csv`.
+Draft exports default to Markdown and accept `markdown` and `json`; `--draft
+<id>` implies `--kind draft` and picks a revision, and `--run <id>` picks the
+run.
 
 ## Drafting
 
@@ -281,6 +300,9 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow extract` — human-confirmed evidence rows with quotes, separate tool
   suggestions, configurable fields and CSV/JSON round-trip. Only confirmed
   includes are extracted.
+- `winnow export` — stored sources, evidence or a draft in table, JSON, CSV,
+  BibTeX, CSL or Markdown, with `--all` for unselected sources and `--draft` for
+  a specific revision.
 - `winnow review` — evidence bundle, template or local-model writer,
   deterministic checks 1–5, optional support entailment pass, kept/marked/held/
   dropped report, citeproc citations and an evidence appendix. `--csl` accepts a
@@ -339,7 +361,7 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.4 in progress | Search, screen, extract, stance, review, argue, counter, queue, verify, replay |
+| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay |
 | Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
 | Desktop app | v0.5 in progress | Development shell around the local UI; installers next |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |
@@ -347,6 +369,7 @@ between, and refuses to skip it:
 ## Documentation
 
 - [SPEC.md](SPEC.md) — the product and technical specification
+- [docs/method.md](docs/method.md) — how the review method works and the guidance it follows
 - [docs/adr](docs/adr/README.md) — architecture decision records
 - [docs/reviews](docs/reviews/README.md) — external spec audits and disposition
 - [site](site/README.md) — landing page and custom-domain notes

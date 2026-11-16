@@ -35,6 +35,7 @@ import {
   formatScreeningJson,
   formatScreeningTable,
   formatSearchJson,
+  formatSourcesExport,
   formatStanceCsv,
   formatStanceJson,
   formatStanceTable,
@@ -45,6 +46,7 @@ import {
   getDraft,
   getLatestDraft,
   getLatestRun,
+  getRun,
   hashSnapshot,
   heldSentences,
   importExtractionValues,
@@ -54,6 +56,7 @@ import {
   isCitable,
   loadDraftSnapshot,
   loadExtractionState,
+  loadRunSources,
   loadScreeningState,
   loadStanceState,
   normaliseStyle,
@@ -73,6 +76,7 @@ import {
   replayRun,
   restoreHeldSentence,
   runCitationChase,
+  runSourceCounts,
   saveBrief,
   saveDraft,
   savePayload,
@@ -94,6 +98,8 @@ import {
   type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
+  type RunRow,
+  type SearchResult,
   type ScreeningDecision,
   type ScreeningReasonCode,
   type ScreeningRelevance,
@@ -229,6 +235,16 @@ interface QueueCliOptions {
   reviewer?: string;
   rationale?: string;
   format: string;
+  out?: string;
+}
+
+interface ExportCliOptions {
+  run?: string;
+  draft?: string;
+  kind: string;
+  fields?: string;
+  all?: boolean;
+  format?: string;
   out?: string;
 }
 
@@ -1287,6 +1303,129 @@ program
   });
 
 program
+  .command('export [project]')
+  .description('Export sources, evidence or a stored draft')
+  .option('--run <run-id>', 'run to export (default: latest completed)')
+  .option('--draft <id>', 'draft to export (default: latest)')
+  .option('--kind <kind>', 'sources, evidence or draft (default: sources, or draft with --draft)')
+  .option('--fields <list>', 'comma-separated evidence fields', DEFAULT_FIELDS.join(','))
+  .option('--all', 'include unselected sources')
+  .option('--format <format>', 'format for the selected kind')
+  .option('--out <file>', 'write output to a file')
+  .action(async (projectArg: string | undefined, options: ExportCliOptions) => {
+    const kind = parseFormat(
+      options.kind ?? (options.draft ? 'draft' : 'sources'),
+      ['sources', 'evidence', 'draft'],
+    );
+    if (kind !== 'draft' && options.draft) {
+      throw new UsageError('--draft is only valid with --kind draft');
+    }
+
+    const defaultFormat =
+      kind === 'sources' ? 'json' : kind === 'evidence' ? 'csv' : 'markdown';
+    const allowed =
+      kind === 'sources'
+        ? ['table', 'json', 'csv', 'bibtex', 'csl']
+        : kind === 'evidence'
+          ? ['table', 'json', 'csv']
+          : ['markdown', 'json'];
+    const format = parseFormat(options.format ?? defaultFormat, allowed);
+
+    const root = await requireProjectRoot(projectArg);
+    const project = await openProject(root);
+
+    try {
+      if (kind === 'draft') {
+        const row = options.draft
+          ? getDraft(project.db, options.draft)
+          : getLatestDraft(project.db, options.run);
+        if (!row) {
+          throw new UsageError(
+            options.draft
+              ? `Draft not found: ${options.draft}`
+              : 'No draft found. Run `winnow review` or `winnow argue` first.',
+          );
+        }
+        if (options.run && row.run_id && row.run_id !== options.run) {
+          throw new UsageError(
+            `Draft ${row.id} belongs to run ${row.run_id}, not ${options.run}`,
+          );
+        }
+
+        let output: string;
+        if (format === 'json') {
+          let structured: StructuredDraft;
+          try {
+            structured = JSON.parse(row.structured_json) as StructuredDraft;
+          } catch {
+            throw new UsageError(`Draft ${row.id} has invalid structured data`);
+          }
+          output = formatDraftJson(structured);
+        } else {
+          output = row.markdown;
+        }
+        await emit(output, options.out);
+        process.exitCode = 0;
+        return;
+      }
+
+      const runId = options.run ?? getLatestRun(project.db)?.id;
+      if (!runId) {
+        throw new UsageError(
+          'No completed run found. Run `winnow search` first.',
+        );
+      }
+      const run = getRun(project.db, runId);
+      if (!run) {
+        throw new UsageError(`Run not found: ${runId}`);
+      }
+
+      if (kind === 'sources') {
+        const stored = loadRunSources(project.db, runId);
+        const ranked: RankedSource[] = stored.map((item) => ({
+          ...item,
+          citability: citability(item.verification),
+        }));
+        const scoped = options.all
+          ? ranked
+          : ranked.filter((item) => item.selected);
+        const counts = runSourceCounts(project.db, runId);
+        const output = formatSourcesExport(
+          format as 'table' | 'json' | 'csv' | 'bibtex' | 'csl',
+          {
+            runId: run.id,
+            query: run.query,
+            startedAt: run.started_at,
+            finishedAt: run.finished_at,
+            identified: counts.identified,
+            deduplicated: counts.deduplicated,
+            failures: runFailures(run),
+            ranked,
+            selected: scoped,
+          },
+        );
+        await emit(output, options.out);
+        process.exitCode = ranked.length === 0 ? 3 : 0;
+        return;
+      }
+
+      const fields = parseFields(options.fields);
+      const summary = loadExtractionState(project.db, runId, fields);
+      const output = renderExtractionOutput(format, summary);
+      await emit(output, options.out);
+      if (format === 'csv' || options.out) {
+        process.stderr.write(extractionCountsLine(summary));
+      }
+      process.exitCode = summary.counts.included === 0 ? 3 : 0;
+    } catch (error) {
+      if (error instanceof ExtractionError) throw new UsageError(error.message);
+      throw error;
+    } finally {
+      project.db.close();
+    }
+  });
+
+program
   .command('verify <target>')
   .description('Verify a DOI, or every DOI found in a text file')
   .option('--format <format>', 'table or json', 'table')
@@ -1696,6 +1835,19 @@ function renderExtractionOutput(
   if (format === 'json') return formatEvidenceJson(summary);
   if (format === 'csv') return formatEvidenceCsv(summary);
   return formatEvidenceTable(summary);
+}
+
+function runFailures(run: RunRow): SearchResult['failures'] {
+  try {
+    const health = JSON.parse(run.component_health_json) as {
+      failures?: unknown;
+    };
+    return Array.isArray(health.failures)
+      ? (health.failures as SearchResult['failures'])
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function extractionCountsLine(summary: ExtractionSummary): string {

@@ -78,6 +78,48 @@ export function formatSearchJson(result: SearchResult): string {
   )}\n`;
 }
 
+export interface StoredSourcesExportOptions {
+  runId: string;
+  query: string;
+  startedAt: string;
+  finishedAt: string | null;
+  identified: number;
+  deduplicated: number;
+  failures?: SearchResult['failures'];
+  ranked: RankedSource[];
+  selected: RankedSource[];
+}
+
+export function formatSourcesExport(
+  format: 'table' | 'json' | 'csv' | 'bibtex' | 'csl',
+  options: StoredSourcesExportOptions,
+): string {
+  if (format === 'json') {
+    const result: SearchResult = {
+      runId: options.runId,
+      query: options.query,
+      startedAt: options.startedAt,
+      finishedAt: options.finishedAt ?? '',
+      retrieved: options.identified,
+      unique: options.deduplicated,
+      selectedCount: options.ranked.filter((item) => item.selected).length,
+      citableCount: options.ranked.filter((item) => isCitable(item.citability))
+        .length,
+      sources: options.selected,
+      failures: options.failures ?? [],
+      payloads: [],
+    };
+    return formatSearchJson(result);
+  }
+  if (format === 'csv') return formatCsv(options.selected);
+  if (format === 'bibtex') return formatBibtex(options.selected);
+  if (format === 'csl') return formatCsl(options.selected);
+  return `${formatTable(
+    options.selected.map((item) => ({ ...item, selected: true })),
+    true,
+  )}\n`;
+}
+
 export function formatCsv(sources: RankedSource[]): string {
   const header = [
     'rank',
