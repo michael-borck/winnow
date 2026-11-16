@@ -23,6 +23,9 @@ import { briefId, type Brief } from '../brief/brief.js';
 
 export const LATEST_SCHEMA_VERSION = 8;
 
+const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024;
+const MAX_PROJECT_PAYLOAD_BYTES = 250 * 1024 * 1024;
+
 export interface RunRow {
   id: string;
   project_id: string | null;
@@ -481,6 +484,26 @@ export async function savePayload(
   const relativePath = path.join('payloads', `${payload.id}.json.gz`);
   const absolutePath = path.join(projectRoot, relativePath);
   const compressed = gzipSync(Buffer.from(payload.body, 'utf8'));
+
+  if (compressed.byteLength > MAX_PAYLOAD_BYTES) {
+    throw new Error(
+      `Payload ${payload.id} is ${compressed.byteLength} bytes; the per-payload cap is ${MAX_PAYLOAD_BYTES}`,
+    );
+  }
+
+  const existing = db
+    .prepare('SELECT size FROM raw_payloads WHERE id = ?')
+    .get(payload.id) as { size: number } | undefined;
+  const totalRow = db
+    .prepare('SELECT COALESCE(SUM(size), 0) AS total FROM raw_payloads')
+    .get() as { total: number };
+  const projected =
+    Number(totalRow.total) - (existing?.size ?? 0) + compressed.byteLength;
+  if (projected > MAX_PROJECT_PAYLOAD_BYTES) {
+    throw new Error(
+      `Project payload storage would reach ${projected} bytes; the cap is ${MAX_PROJECT_PAYLOAD_BYTES}`,
+    );
+  }
 
   await writeFile(absolutePath, compressed);
   db.prepare(

@@ -8,7 +8,7 @@ import {
   generateModelDraft,
   parseModelDraft,
 } from '../src/model/writer.js';
-import { ModelError } from '../src/model/client.js';
+import { ModelError, chatJson } from '../src/model/client.js';
 
 const servers: Server[] = [];
 
@@ -93,6 +93,19 @@ async function mockModel(content: unknown): Promise<{
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     lastRequest: () => lastRequest,
   };
+}
+
+async function mockRawModel(body: string): Promise<{ baseUrl: string }> {
+  const server = createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    response.end(body);
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve()),
+  );
+  const address = server.address() as AddressInfo;
+  return { baseUrl: `http://127.0.0.1:${address.port}/v1` };
 }
 
 const validDraft = {
@@ -231,5 +244,20 @@ describe('model writer', () => {
     });
     expect(messages[1]?.content).toContain('"opposes": 1');
     expect(messages[1]?.content).toContain('Counter-evidence');
+  });
+
+  it('rejects a model response larger than the cap', async () => {
+    const { baseUrl } = await mockRawModel(
+      JSON.stringify({
+        choices: [{ message: { content: 'x'.repeat(1000) } }],
+      }),
+    );
+
+    await expect(
+      chatJson(
+        { baseUrl, model: 'mock', maxResponseBytes: 10 },
+        [],
+      ),
+    ).rejects.toThrow('too large');
   });
 });

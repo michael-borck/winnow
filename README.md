@@ -55,10 +55,11 @@ winnow doctor
 and then by normalised title, first author and year, links preprint and
 published versions as variants, verifies each DOI independently through
 `@michaelborck/cite-sight-core` and ranks with reciprocal rank fusion before
-applying `--limit`. A run saves its
-raw provider payloads, sources, verification axes and ranked set to the
-project's SQLite database. `replay` re-derives the deterministic snapshot and
-compares hashes.
+applying `--limit`. Provider calls retry with backoff on 429 and 5xx, responses
+are size-capped, and stored payloads are capped at 2 MB each and 250 MB per
+project. A run saves its raw provider payloads, sources, verification axes and
+ranked set to the project's SQLite database. `replay` re-derives the
+deterministic snapshot and compares hashes.
 
 `rerun <run-id> --live` re-executes the same query against current providers and
 reports drift: added, removed and changed sources, rank and selection changes,

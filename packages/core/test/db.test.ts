@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { initProject } from '../src/project/project.js';
-import { createRun, loadRunSources, saveBrief, saveRunSources } from '../src/project/db.js';
-import type { RankedSource } from '../src/types.js';
+import {
+  createRun,
+  loadRunSources,
+  saveBrief,
+  savePayload,
+  saveRunSources,
+} from '../src/project/db.js';
+import type { RankedSource, RetrievalPayload } from '../src/types.js';
 import type { Brief } from '../src/brief/brief.js';
 
 const temporaryDirectories: string[] = [];
@@ -48,6 +55,17 @@ function source(abstract: string | undefined): RankedSource {
     rank: 1,
     selected: true,
     providers: [{ provider: 'openalex', rank: 1 }],
+  };
+}
+
+function payload(body: string, id = 'payload-1'): RetrievalPayload {
+  return {
+    id,
+    provider: 'openalex',
+    query: 'testing',
+    url: 'https://example.test/works',
+    fetchedAt: new Date().toISOString(),
+    body,
   };
 }
 
@@ -141,5 +159,70 @@ describe('saveBrief', () => {
     expect(stored.source.alternateDois).toContain('10.1/alt');
 
     project.db.close();
+  });
+
+  it('stores a small payload and records its compressed size', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    const db = project.db;
+    createRun(db, { id: 'run-1', query: 'testing', config: {} });
+
+    const id = await savePayload(
+      db,
+      project.root,
+      'run-1',
+      payload('{"ok":true}'),
+    );
+    const row = db
+      .prepare('SELECT size, path FROM raw_payloads WHERE id = ?')
+      .get(id) as { size: number; path: string } | undefined;
+
+    expect(row?.size).toBeGreaterThan(0);
+    expect(row?.path).toContain('payloads/');
+
+    db.close();
+  });
+
+  it('rejects a payload larger than the per-payload cap', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    const db = project.db;
+    createRun(db, { id: 'run-1', query: 'testing', config: {} });
+
+    const body = randomBytes(2 * 1024 * 1024 + 1024).toString('base64');
+    await expect(
+      savePayload(db, project.root, 'run-1', payload(body, 'payload-big')),
+    ).rejects.toThrow('per-payload cap');
+
+    db.close();
+  });
+
+  it('rejects a payload that would exceed the project cap', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    const db = project.db;
+    createRun(db, { id: 'run-1', query: 'testing', config: {} });
+
+    db.prepare(
+      `INSERT INTO raw_payloads
+       (id, run_id, provider, query, url, fetched_at, sha256, compression, path, size)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'gzip', ?, ?)`,
+    ).run(
+      'payload-existing',
+      'run-1',
+      'openalex',
+      'testing',
+      'https://example.test/works',
+      new Date().toISOString(),
+      'hash',
+      'payloads/existing.json.gz',
+      250 * 1024 * 1024 - 10,
+    );
+
+    await expect(
+      savePayload(db, project.root, 'run-1', payload('{"ok":true}', 'small')),
+    ).rejects.toThrow('Project payload storage');
+
+    db.close();
   });
 });

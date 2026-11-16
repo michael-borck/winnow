@@ -103,6 +103,7 @@ import {
   type ExtractionSummary,
   type ParsedBrief,
   type RankedSource,
+  type RetrievalPayload,
   type RunRow,
   type SearchResult,
   type ScreeningDecision,
@@ -415,6 +416,11 @@ program
 
     let savedPath: string | null = null;
     let briefId: string | null = null;
+    let payloadFailures: Array<{
+      provider: string;
+      reason: string;
+      message: string;
+    }> = [];
     if (projectRoot) {
       const project = await openProject(projectRoot);
       try {
@@ -438,20 +444,24 @@ program
             briefPath: parsedBrief?.brief.path ?? null,
           },
         });
-        for (const payload of result.payloads) {
-          await savePayload(project.db, project.root, result.runId, payload);
-        }
+        payloadFailures = await savePayloads(
+          project.db,
+          project.root,
+          result.runId,
+          result.payloads,
+        );
         saveRunSources(project.db, result.runId, result.query, result.sources);
         finishRun(project.db, result.runId, {
           outputSha256: hashSnapshot(snapshot),
           stages: {
-            retrieve: result.failures.length ? 'partial' : 'ok',
+            retrieve:
+              result.failures.length || payloadFailures.length ? 'partial' : 'ok',
             verify: 'ok',
             rank: 'ok',
           },
           componentHealth: {
-            failed: result.failures.length > 0,
-            failures: result.failures,
+            failed: result.failures.length > 0 || payloadFailures.length > 0,
+            failures: [...result.failures, ...payloadFailures],
           },
         });
         savedPath = project.root;
@@ -463,9 +473,15 @@ program
     const output = renderSearchOutput(format, result, selected, options.abstracts);
     await emit(output, options.out);
     emitSearchSummary(result, savedPath, options.out);
+    for (const failure of payloadFailures) {
+      process.stderr.write(
+        `winnow: payload ${failure.provider} not stored: ${failure.message}\n`,
+      );
+    }
 
-    if (result.failures.length > 0) process.exitCode = 1;
-    else if (result.citableCount === 0) process.exitCode = 3;
+    if (result.failures.length > 0 || payloadFailures.length > 0) {
+      process.exitCode = 1;
+    } else if (result.citableCount === 0) process.exitCode = 3;
     else process.exitCode = 0;
   });
 
@@ -1192,9 +1208,12 @@ program
           mailto: options.mailto ?? null,
         },
       });
-      for (const payload of result.payloads) {
-        await savePayload(project.db, project.root, result.runId, payload);
-      }
+      const payloadFailures = await savePayloads(
+        project.db,
+        project.root,
+        result.runId,
+        result.payloads,
+      );
       saveRunSources(
         project.db,
         result.runId,
@@ -1204,13 +1223,14 @@ program
       finishRun(project.db, result.runId, {
         outputSha256: hashSnapshot(snapshot),
         stages: {
-          retrieve: result.failures.length ? 'partial' : 'ok',
+          retrieve:
+            result.failures.length || payloadFailures.length ? 'partial' : 'ok',
           verify: 'ok',
           rank: 'ok',
         },
         componentHealth: {
-          failed: result.failures.length > 0,
-          failures: result.failures,
+          failed: result.failures.length > 0 || payloadFailures.length > 0,
+          failures: [...result.failures, ...payloadFailures],
         },
       });
 
@@ -1245,7 +1265,12 @@ program
         `counter run ${result.runId} saved with ${result.selectedCount} selected` +
           `${options.thesis ? `; ${suggested} stance suggestion(s)` : ''}\n`,
       );
-      if (result.failures.length) process.exitCode = 1;
+      for (const failure of payloadFailures) {
+        process.stderr.write(
+          `winnow: payload ${failure.provider} not stored: ${failure.message}\n`,
+        );
+      }
+      if (result.failures.length || payloadFailures.length) process.exitCode = 1;
       else if (result.selectedCount === 0) process.exitCode = 3;
       else process.exitCode = 0;
     } catch (error) {
@@ -1663,6 +1688,33 @@ async function targetsFrom(target: string): Promise<string[]> {
     if (error instanceof UsageError) throw error;
     throw new UsageError(`Expected a DOI or a readable text file: ${target}`);
   }
+}
+
+async function savePayloads(
+  db: Parameters<typeof savePayload>[0],
+  root: string,
+  runId: string,
+  payloads: RetrievalPayload[],
+): Promise<Array<{ provider: string; reason: string; message: string }>> {
+  const failures: Array<{
+    provider: string;
+    reason: string;
+    message: string;
+  }> = [];
+
+  for (const payload of payloads) {
+    try {
+      await savePayload(db, root, runId, payload);
+    } catch (error) {
+      failures.push({
+        provider: payload.provider,
+        reason: 'unknown',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return failures;
 }
 
 function renderSearchOutput(

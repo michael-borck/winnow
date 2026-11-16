@@ -3,6 +3,8 @@ export interface ModelClientOptions {
   model: string;
   apiKey?: string;
   timeoutMs?: number;
+  fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
+  maxResponseBytes?: number;
 }
 
 export interface ChatMessage {
@@ -23,10 +25,13 @@ export async function chatJson(
 ): Promise<unknown> {
   const url = `${options.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const timeoutMs = options.timeoutMs ?? 120_000;
+  const fetchImpl =
+    options.fetchImpl ?? ((input, init) => fetch(input, init));
+  const maxResponseBytes = options.maxResponseBytes ?? 5 * 1024 * 1024;
   let response: Response;
 
   try {
-    response = await fetch(url, {
+    response = await fetchImpl(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,6 +59,13 @@ export async function chatJson(
   if (!response.ok) {
     throw new ModelError(
       `Model HTTP ${response.status} at ${url}: ${text.slice(0, 500)}`,
+    );
+  }
+
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > maxResponseBytes) {
+    throw new ModelError(
+      `Model response is too large: ${bytes} bytes at ${url}; the cap is ${maxResponseBytes}`,
     );
   }
 
