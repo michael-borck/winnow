@@ -140,6 +140,33 @@ describe('formatCsv and formatTable', () => {
   });
 });
 
+describe('variant notes', () => {
+  it('notes alternate DOIs in BibTeX and CSL', () => {
+    const alternate = source({
+      source: { ...source().source, alternateDois: ['10.1/alt'] },
+    });
+
+    expect(formatBibtex([alternate])).toContain('also doi:10.1/alt');
+
+    const parsed = JSON.parse(formatCsl([alternate])) as Array<
+      Record<string, unknown>
+    >;
+    expect(String(parsed[0]!.note)).toContain('also doi:10.1/alt');
+  });
+
+  it('notes the version of record for a variant', () => {
+    const variant = source({
+      source: {
+        ...source().source,
+        variantOf: 'doi:10.1/a',
+        isVersionOfRecord: false,
+      },
+    });
+
+    expect(formatBibtex([variant])).toContain('version of doi:10.1/a');
+  });
+});
+
 describe('formatSourcesExport', () => {
   function options(
     overrides: Partial<StoredSourcesExportOptions> = {},

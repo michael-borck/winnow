@@ -24,6 +24,8 @@ If a source is excluded by a brief filter, Winnow flags and counts it by default
 
 The current implementation searches OpenAlex and Crossref, with Semantic Scholar used for citation chasing. Each run stores every retrieved record with its provider and rank, whether or not `--limit` selects it. It also stores the raw provider payloads.
 
+Records are deduplicated by DOI, then by normalised title, first author and year. A preprint and its published version are linked as variants rather than merged. The published version is marked as the version of record, both identifiers are kept, and the alternate DOI is noted in BibTeX and CSL exports.
+
 Provider lists are fused with reciprocal rank fusion (RRF, k = 60) rather than by comparing provider scores that do not mean the same thing (ADR 0010; Cormack et al., 2009). Deterministic tie-breakers follow. The specification uses completeness, recency, citation percentile where the provider supplies it, and open-access availability. v0.5 uses completeness, recency, raw citation count, and title. Citation count is a tie-breaker, not a quality score or the main relevance signal. Winnow computes no composite quality score.
 
 This is where the method refuses a common shortcut. The number of papers that report a finding is not a measure of the finding's strength. Five small surveys do not outweigh one well-run trial. Winnow ranks retrieval, then leaves the judgement about evidence strength to Weigh and to the reviewer.

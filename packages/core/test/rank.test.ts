@@ -63,6 +63,80 @@ describe('dedupeCandidates', () => {
     ]);
     expect(merged).toHaveLength(2);
   });
+
+  it('merges the same title, author and year across DOIs and keeps the alternate DOI', () => {
+    const title = 'A study of retrieval augmented generation';
+    const merged = dedupeCandidates([
+      candidate('doi:10.1/a', 'openalex', 1, {
+        title,
+        type: 'journal-article',
+      }),
+      candidate('doi:10.1/b', 'crossref', 2, {
+        title,
+        type: 'journal-article',
+        abstract: 'A much longer abstract.',
+      }),
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(['10.1/a', '10.1/b']).toContain(merged[0]!.source.doi);
+    expect(merged[0]!.source.alternateDois).toHaveLength(1);
+    expect(merged[0]!.providers).toHaveLength(2);
+  });
+
+  it('links a preprint and its published version instead of merging them', () => {
+    const title = 'A study of retrieval augmented generation';
+    const merged = dedupeCandidates([
+      candidate('doi:10.1/preprint', 'openalex', 1, {
+        title,
+        year: 2023,
+        type: 'preprint',
+        sourceProvider: 'arxiv',
+      }),
+      candidate('doi:10.1/published', 'crossref', 2, {
+        title,
+        year: 2024,
+        type: 'journal-article',
+        venue: 'Journal of Testing',
+      }),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    const canonical = merged.find(
+      (item) => item.source.doi === '10.1/published',
+    )!;
+    const variant = merged.find(
+      (item) => item.source.doi === '10.1/preprint',
+    )!;
+
+    expect(canonical.source.isVersionOfRecord).toBe(true);
+    expect(canonical.source.variantOf).toBeUndefined();
+    expect(variant.source.isVersionOfRecord).toBe(false);
+    expect(variant.source.variantOf).toBe(canonical.source.id);
+    expect(canonical.source.workKey).toBe(variant.source.workKey);
+  });
+
+  it('does not merge a preprint and a journal article from the same year', () => {
+    const title = 'A study of retrieval augmented generation';
+    const merged = dedupeCandidates([
+      candidate('doi:10.1/preprint', 'openalex', 1, {
+        title,
+        year: 2024,
+        type: 'preprint',
+        sourceProvider: 'arxiv',
+      }),
+      candidate('doi:10.1/published', 'crossref', 2, {
+        title,
+        year: 2024,
+        type: 'journal-article',
+      }),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(
+      merged.filter((item) => item.source.isVersionOfRecord === true),
+    ).toHaveLength(1);
+  });
 });
 
 describe('rankCandidates', () => {

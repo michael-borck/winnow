@@ -1,4 +1,9 @@
-import type { RankedSource, ReplaySnapshot, SearchResult } from '../types.js';
+import type {
+  AcademicSource,
+  RankedSource,
+  ReplaySnapshot,
+  SearchResult,
+} from '../types.js';
 import { citabilityNote, isCitable } from '../verification/citability.js';
 import { firstAuthorSurname } from '../text/ids.js';
 
@@ -189,7 +194,13 @@ export function formatBibtex(sources: RankedSource[]): string {
     field('year', source.year ? String(source.year) : undefined);
     field('doi', source.doi);
     field('url', source.url);
-    field('note', escapeBibtex(citabilityNote(item.citability, item.verification)));
+    const note = [
+      citabilityNote(item.citability, item.verification),
+      variantNote(source),
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join('; ');
+    field('note', escapeBibtex(note));
     lines.push('}');
     entries.push(lines.join('\n'));
   }
@@ -209,7 +220,12 @@ export function formatCsl(sources: RankedSource[]): string {
         type: cslType(source.type),
         title: source.title,
         author: source.authors.map(parseAuthor),
-        note: citabilityNote(item.citability, item.verification),
+        note: [
+          citabilityNote(item.citability, item.verification),
+          variantNote(source),
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join('; '),
       };
       if (source.year) record.issued = { 'date-parts': [[source.year]] };
       if (source.venue) record['container-title'] = source.venue;
@@ -229,6 +245,14 @@ export function formatSourceList(sources: RankedSource[]): string {
         `${item.rank}. [${item.citability}] ${item.source.title} (${item.source.year ?? 'n.d.'})`,
     )
     .join('\n');
+}
+
+function variantNote(source: AcademicSource): string | undefined {
+  if (source.variantOf) return `version of ${source.variantOf}`;
+  if (source.alternateDois?.length) {
+    return `also doi:${source.alternateDois.join(', doi:')}`;
+  }
+  return undefined;
 }
 
 function citeKey(

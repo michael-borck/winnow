@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { initProject } from '../src/project/project.js';
-import { createRun, saveBrief, saveRunSources } from '../src/project/db.js';
+import { createRun, loadRunSources, saveBrief, saveRunSources } from '../src/project/db.js';
 import type { RankedSource } from '../src/types.js';
 import type { Brief } from '../src/brief/brief.js';
 
@@ -118,6 +118,27 @@ describe('saveBrief', () => {
     expect(row.question).toBe('Does it work?');
     expect(row.mode).toBe('review');
     expect(JSON.parse(row.filters_json)).toMatchObject({ since: 2020 });
+
+    project.db.close();
+  });
+
+  it('stores and loads variant metadata and alternate DOIs', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    createRun(project.db, { id: 'run-1', query: 'one', config: {} });
+
+    const item = source('The first abstract.');
+    item.source.workKey = 'work-1';
+    item.source.variantOf = 'doi:10.1/a';
+    item.source.isVersionOfRecord = false;
+    item.source.alternateDois = ['10.1/alt'];
+    saveRunSources(project.db, 'run-1', 'one', [item]);
+
+    const stored = loadRunSources(project.db, 'run-1')[0]!;
+    expect(stored.source.workKey).toBe('work-1');
+    expect(stored.source.variantOf).toBe('doi:10.1/a');
+    expect(stored.source.isVersionOfRecord).toBe(false);
+    expect(stored.source.alternateDois).toContain('10.1/alt');
 
     project.db.close();
   });

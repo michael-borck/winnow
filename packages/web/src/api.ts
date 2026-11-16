@@ -45,6 +45,9 @@ export interface SourceItem {
   reviewer: string | null;
   filterFlags: string[];
   rank: number;
+  variantOf?: string | null;
+  isVersionOfRecord?: boolean;
+  alternateDois?: string[];
 }
 
 export interface SourcesResponse {

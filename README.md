@@ -51,9 +51,11 @@ winnow rerun <run-id> --live --diff
 winnow doctor
 ```
 
-`search` retrieves from OpenAlex and Crossref by default, deduplicates by DOI,
-verifies each DOI independently through `@michaelborck/cite-sight-core` and
-ranks with reciprocal rank fusion before applying `--limit`. A run saves its
+`search` retrieves from OpenAlex and Crossref by default, deduplicates by DOI
+and then by normalised title, first author and year, links preprint and
+published versions as variants, verifies each DOI independently through
+`@michaelborck/cite-sight-core` and ranks with reciprocal rank fusion before
+applying `--limit`. A run saves its
 raw provider payloads, sources, verification axes and ranked set to the
 project's SQLite database. `replay` re-derives the deterministic snapshot and
 compares hashes.

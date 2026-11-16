@@ -134,7 +134,7 @@ describe('runDoctor', () => {
     });
 
     expect(check(report, 'project').status).toBe('ok');
-    expect(check(report, 'project').detail).toContain('schema 7');
+    expect(check(report, 'project').detail).toContain('schema 8');
     expect(check(report, 'project').detail).toContain('quick_check ok');
   });
 

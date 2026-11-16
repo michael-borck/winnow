@@ -21,7 +21,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 7;
+export const LATEST_SCHEMA_VERSION = 8;
 
 export interface RunRow {
   id: string;
@@ -200,6 +200,9 @@ export function migrate(db: DatabaseSync): void {
       citation_count INTEGER,
       citation_provider TEXT,
       citation_collected_at TEXT,
+      work_key TEXT,
+      variant_of TEXT,
+      is_version_of_record INTEGER,
       created_at TEXT NOT NULL
     );
 
@@ -414,6 +417,9 @@ export function migrate(db: DatabaseSync): void {
     addColumnIfMissing(db, 'drafts', 'model', 'TEXT');
     addColumnIfMissing(db, 'drafts', 'parent_id', 'TEXT');
     addColumnIfMissing(db, 'drafts', 'bundle_json', 'TEXT');
+    addColumnIfMissing(db, 'sources', 'work_key', 'TEXT');
+    addColumnIfMissing(db, 'sources', 'variant_of', 'TEXT');
+    addColumnIfMissing(db, 'sources', 'is_version_of_record', 'INTEGER');
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
       LATEST_SCHEMA_VERSION,
       new Date().toISOString(),
@@ -504,8 +510,8 @@ export function saveRunSources(
 ): void {
   const insertSource = db.prepare(
     `INSERT INTO sources
-     (id, title, authors_json, year, venue, type, citation_count, citation_provider, citation_collected_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     (id, title, authors_json, year, venue, type, citation_count, citation_provider, citation_collected_at, work_key, variant_of, is_version_of_record, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title,
        authors_json = excluded.authors_json,
@@ -514,7 +520,10 @@ export function saveRunSources(
        type = excluded.type,
        citation_count = excluded.citation_count,
        citation_provider = excluded.citation_provider,
-       citation_collected_at = excluded.citation_collected_at`,
+       citation_collected_at = excluded.citation_collected_at,
+       work_key = excluded.work_key,
+       variant_of = excluded.variant_of,
+       is_version_of_record = excluded.is_version_of_record`,
   );
   const insertIdentifier = db.prepare(
     `INSERT OR IGNORE INTO identifiers (source_id, scheme, value) VALUES (?, ?, ?)`,
@@ -574,10 +583,16 @@ export function saveRunSources(
         source.citationCount ?? null,
         source.citationProvider ?? null,
         source.citationCollectedAt ?? null,
+        source.workKey ?? null,
+        source.variantOf ?? null,
+        source.isVersionOfRecord == null ? null : source.isVersionOfRecord ? 1 : 0,
         new Date().toISOString(),
       );
 
       if (source.doi) insertIdentifier.run(source.id, 'doi', source.doi.toLowerCase());
+      for (const doi of source.alternateDois ?? []) {
+        insertIdentifier.run(source.id, 'doi', doi.toLowerCase());
+      }
       if (source.url) insertIdentifier.run(source.id, 'url', source.url);
 
       insertVerification.run(
@@ -730,6 +745,9 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
             citation_count: number | null;
             citation_provider: string | null;
             citation_collected_at: string | null;
+            work_key: string | null;
+            variant_of: string | null;
+            is_version_of_record: number | null;
           }
         | undefined;
       const verificationRow = db
@@ -751,9 +769,15 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
         throw new Error(`Incomplete stored record for ${row.source_id}`);
       }
 
-      const doiRow = db
-        .prepare("SELECT value FROM identifiers WHERE source_id = ? AND scheme = 'doi' LIMIT 1")
-        .get(row.source_id) as { value: string } | undefined;
+      const doiRows = db
+        .prepare("SELECT value FROM identifiers WHERE source_id = ? AND scheme = 'doi'")
+        .all(row.source_id) as Array<{ value: string }>;
+      const dois = [
+        ...new Set(doiRows.map((item) => item.value)),
+      ].sort();
+      const primaryDoi =
+        dois.find((value) => row.source_id === `doi:${value}`) ?? dois[0];
+      const alternateDois = dois.filter((value) => value !== primaryDoi);
       const urlRow = db
         .prepare("SELECT value FROM identifiers WHERE source_id = ? AND scheme = 'url' LIMIT 1")
         .get(row.source_id) as { value: string } | undefined;
@@ -771,7 +795,8 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
         year: sourceRow.year,
         venue: sourceRow.venue ?? undefined,
         type: sourceRow.type ?? undefined,
-        doi: doiRow?.value,
+        doi: primaryDoi,
+        ...(alternateDois.length ? { alternateDois } : {}),
         url: urlRow?.value,
         abstract: textRow?.text,
         ...(contextRow
@@ -780,6 +805,11 @@ export function loadRunSources(db: DatabaseSync, runId: string): StoredSource[] 
         citationCount: sourceRow.citation_count ?? undefined,
         citationProvider: sourceRow.citation_provider ?? undefined,
         citationCollectedAt: sourceRow.citation_collected_at ?? undefined,
+        ...(sourceRow.work_key ? { workKey: sourceRow.work_key } : {}),
+        ...(sourceRow.variant_of ? { variantOf: sourceRow.variant_of } : {}),
+        ...(sourceRow.is_version_of_record != null
+          ? { isVersionOfRecord: sourceRow.is_version_of_record === 1 }
+          : {}),
         sourceProvider: 'stored',
       };
 

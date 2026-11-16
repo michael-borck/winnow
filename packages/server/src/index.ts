@@ -207,6 +207,9 @@ app.get('/api/sources', (req, res) => {
       reviewer: item.reviewer ?? null,
       filterFlags: item.filterFlags,
       rank: item.rank,
+      variantOf: item.source.variantOf ?? null,
+      isVersionOfRecord: item.source.isVersionOfRecord ?? true,
+      alternateDois: item.source.alternateDois ?? [],
     })),
   });
 });

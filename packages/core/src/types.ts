@@ -106,6 +106,10 @@ export interface AcademicSource {
   openAccessUrl?: string;
   citationContexts?: string[];
   sourceProvider: string;
+  alternateDois?: string[];
+  workKey?: string;
+  variantOf?: string;
+  isVersionOfRecord?: boolean;
 }
 
 export interface RetrievedCandidate {
