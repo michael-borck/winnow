@@ -386,12 +386,14 @@ function DraftsTab({ runId }: { runId: string }) {
   const [writer, setWriter] = useState('template');
   const [model, setModel] = useState('');
   const [baseUrl, setBaseUrl] = useState('http://localhost:11434/v1');
+  const [remoteConsent, setRemoteConsent] = useState(false);
   const [support, setSupport] = useState(false);
   const [cslXml, setCslXml] = useState<string | null>(null);
   const [cslName, setCslName] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const remoteModel = !isLocalBaseUrl(baseUrl);
 
   useEffect(() => {
     let cancelled = false;
@@ -444,7 +446,13 @@ function DraftsTab({ runId }: { runId: string }) {
         runId,
         style,
         writer,
-        ...(writer === 'model' ? { model: model.trim(), baseUrl } : {}),
+        ...(writer === 'model'
+          ? {
+              model: model.trim(),
+              baseUrl,
+              consent: remoteModel ? remoteConsent : false,
+            }
+          : {}),
         support: writer === 'model' && support,
         ...(cslXml ? { csl: cslXml } : {}),
       });
@@ -497,7 +505,11 @@ function DraftsTab({ runId }: { runId: string }) {
       <div className="draft-toolbar">
         <button
           onClick={() => void generate()}
-          disabled={generating || (writer === 'model' && !model.trim())}
+          disabled={
+            generating ||
+            (writer === 'model' &&
+              (!model.trim() || (remoteModel && !remoteConsent)))
+          }
         >
           {generating ? 'Generating…' : 'Generate review'}
         </button>
@@ -525,6 +537,16 @@ function DraftsTab({ runId }: { runId: string }) {
                 onChange={(event) => setBaseUrl(event.target.value)}
               />
             </label>
+            {remoteModel ? (
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={remoteConsent}
+                  onChange={(event) => setRemoteConsent(event.target.checked)}
+                />
+                I understand the evidence bundle will leave this machine
+              </label>
+            ) : null}
             <label className="check">
               <input
                 type="checkbox"
@@ -719,4 +741,18 @@ function label(tab: Tab): string {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isLocalBaseUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.replace(/^\[|\]$/g, '');
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
 }

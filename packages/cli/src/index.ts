@@ -25,6 +25,7 @@ import {
   formatBriefSummary,
   formatCsl,
   formatCsv,
+  formatDoctorReport,
   formatDraftJson,
   formatEvidenceCsv,
   formatEvidenceJson,
@@ -76,6 +77,7 @@ import {
   renderDraftMarkdown,
   replayRun,
   rerunRun,
+  runDoctor,
   RerunError,
   restoreHeldSentence,
   runCitationChase,
@@ -256,6 +258,16 @@ interface RerunCliOptions {
   live?: boolean;
   diff?: boolean;
   format: string;
+}
+
+interface DoctorCliOptions {
+  project?: string;
+  baseUrl?: string;
+  model?: string;
+  mailto?: string;
+  offline?: boolean;
+  format: string;
+  out?: string;
 }
 
 const program = new Command();
@@ -1535,6 +1547,39 @@ program
     } finally {
       project.db.close();
     }
+  });
+
+program
+  .command('doctor')
+  .description('Check providers, network, model and keys')
+  .option('--project <path>', 'project directory or name (default: nearest project)')
+  .option(
+    '--base-url <url>',
+    'OpenAI-compatible model endpoint',
+    'http://localhost:11434/v1',
+  )
+  .option('--model <name>', 'model name to check')
+  .option('--mailto <email>', 'polite-pool email for provider checks')
+  .option('--offline', 'skip provider and model network checks')
+  .option('--format <format>', 'text or json', 'text')
+  .option('--out <file>', 'write output to a file')
+  .action(async (options: DoctorCliOptions) => {
+    const format = parseFormat(options.format, ['text', 'json']);
+    const root = await resolveProjectRoot(options.project);
+    const report = await runDoctor({
+      projectRoot: root ?? undefined,
+      baseUrl: options.baseUrl,
+      model: options.model,
+      mailto: options.mailto,
+      offline: options.offline === true,
+    });
+
+    const output =
+      format === 'json'
+        ? `${JSON.stringify(report, null, 2)}\n`
+        : formatDoctorReport(report);
+    await emit(output, options.out);
+    process.exitCode = report.ok ? 0 : 1;
   });
 
 program.parseAsync(process.argv).catch((error: unknown) => {

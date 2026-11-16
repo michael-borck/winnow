@@ -122,7 +122,9 @@ export async function initSession(): Promise<void> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await fetch(path, {
+    headers: { 'x-winnow-token': sessionToken },
+  });
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as {
       error?: string;

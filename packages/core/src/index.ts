@@ -239,6 +239,16 @@ export {
 } from './pipeline/rerun.js';
 
 export {
+  runDoctor,
+  formatDoctorReport,
+  type DoctorReport,
+  type DoctorCheck,
+  type DoctorStatus,
+  type DoctorOptions,
+  type DoctorFetch,
+} from './doctor.js';
+
+export {
   formatTable,
   formatJson,
   formatSearchJson,

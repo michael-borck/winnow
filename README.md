@@ -13,11 +13,11 @@ The name is the job: separate the grain from the chaff, and show your working.
 
 **Status:** v0.5 in progress. The CLI implements `init`, `brief`, `search`,
 `screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`,
-`verify`, `replay` and `rerun`; template or local-model writers, support
-triage, citeproc styles, citation chasing, custom CSL files, full payload
-replay, a local web UI and a desktop shell are available. Installers and
-notarization are next. v1 targets structured narrative and scoping reviews, not
-systematic reviews. See
+`verify`, `replay`, `rerun` and `doctor`; template or local-model writers,
+support triage, citeproc styles, citation chasing, custom CSL files, full
+payload replay, a local web UI and a desktop shell are available. Installers
+and notarization are next. v1 targets structured narrative and scoping reviews,
+not systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -48,6 +48,7 @@ winnow review . --csl journal.csl --out drafts/review.md
 winnow verify 10.1038/s41586-020-2649-2
 winnow replay <run-id>
 winnow rerun <run-id> --live --diff
+winnow doctor
 ```
 
 `search` retrieves from OpenAlex and Crossref by default, deduplicates by DOI,
@@ -164,6 +165,22 @@ Draft exports default to Markdown and accept `markdown` and `json`; `--draft
 <id>` implies `--kind draft` and picks a revision, and `--run <id>` picks the
 run.
 
+## Diagnostics
+
+`winnow doctor` checks Node, the project database, provider APIs, the local
+model endpoint and key presence. It also prints the hosts Winnow may contact.
+Key values are never printed.
+
+```bash
+winnow doctor
+winnow doctor --offline
+winnow doctor --base-url http://localhost:1234/v1 --model qwen3:8b
+winnow doctor --format json --out doctor.json
+```
+
+`--offline` skips provider and model network checks. A missing local model is a
+warning, not a failure. A failed provider or database check exits 1.
+
 ## Drafting
 
 `winnow review` builds an evidence bundle from confirmed values with quotes,
@@ -187,7 +204,9 @@ local Ollama endpoint at `http://localhost:11434/v1`; use `--base-url` for LM
 Studio, llama.cpp or a remote provider. The model receives only the evidence
 bundle: no full corpus, no other sources. Malformed output is rejected, and
 every returned sentence still runs through checks 1–5. A non-local base URL
-prints a warning because the evidence bundle leaves the machine.
+prints a warning because the evidence bundle leaves the machine. The web UI
+requires an explicit consent checkbox before it will send the bundle to a remote
+endpoint.
 
 `--support` adds a second, separate entailment pass. Each evidence sentence is
 checked against its quotes and labelled `supported`, `partial`, `unsupported`
@@ -237,8 +256,8 @@ The Drafts tab can generate a template or local-model review for the selected
 run, run the support pass, use a named style or a custom CSL file, and compare a
 revision with its parent side by side. API keys come from the server environment
 (`WINNOW_MODEL_API_KEY` or `OPENAI_API_KEY`); the browser never receives them,
-and a non-local base URL shows a warning because the evidence bundle leaves the
-machine.
+and a non-local base URL requires an explicit consent checkbox before the
+evidence bundle leaves the machine.
 
 ## Desktop shell
 
@@ -335,6 +354,9 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   source, rank, selection, citability and verification drift. `--diff` lists
   each change, `--format json` prints the full report, and the comparison is
   stored as an audit event.
+- `winnow doctor` — checks Node, project database integrity, provider
+  reachability, the model endpoint, key presence and the hosts Winnow may
+  contact. `--offline` skips network checks and key values are never printed.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
   with a session token for writes. The Drafts tab can generate a template or
   model review, run support triage, use a named or custom CSL, and compare a
@@ -373,7 +395,7 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun |
+| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun, doctor |
 | Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
 | Desktop app | v0.5 in progress | Development shell around the local UI; installers next |
 | Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |

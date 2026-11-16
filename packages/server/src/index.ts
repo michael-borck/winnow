@@ -55,14 +55,80 @@ const project = await openProject(found);
 const sessionToken = randomUUID();
 const app = express();
 
+app.disable('x-powered-by');
+
+app.use((_req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data:; connect-src 'self'; font-src 'self'; " +
+      "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+  );
+  next();
+});
+
+app.use((req, res, next) => {
+  const host = req.get('host');
+  if (!host) {
+    res.status(400).json({ error: 'Missing Host header' });
+    return;
+  }
+
+  let hostname: string;
+  try {
+    hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    res.status(400).json({ error: 'Invalid Host header' });
+    return;
+  }
+
+  if (
+    hostname !== '127.0.0.1' &&
+    hostname !== 'localhost' &&
+    hostname !== '::1'
+  ) {
+    res.status(403).json({ error: 'Invalid Host header' });
+    return;
+  }
+
+  next();
+});
+
 app.use(express.json({ limit: '1mb' }));
 
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 app.use('/api', (req, res, next) => {
-  if (req.method === 'GET' || req.path === '/session') return next();
+  if (req.path === '/session') return next();
   if (req.get('x-winnow-token') !== sessionToken) {
     res.status(403).json({ error: 'Invalid session token' });
     return;
   }
+
+  const origin = req.get('origin');
+  if (origin) {
+    try {
+      const originUrl = new URL(origin);
+      const host = req.get('host');
+      if (
+        originUrl.host !== host ||
+        (originUrl.protocol !== 'http:' && originUrl.protocol !== 'https:')
+      ) {
+        res.status(403).json({ error: 'Invalid Origin' });
+        return;
+      }
+    } catch {
+      res.status(403).json({ error: 'Invalid Origin' });
+      return;
+    }
+  }
+
   next();
 });
 
@@ -207,6 +273,7 @@ app.post('/api/review', async (req, res) => {
     support?: boolean;
     supportModel?: string;
     csl?: string;
+    consent?: boolean;
   };
   if (!body.runId) {
     res.status(400).json({ error: 'runId is required' });
@@ -241,11 +308,36 @@ app.post('/api/review', async (req, res) => {
     return;
   }
 
+  if (writer === 'model' || body.support) {
+    const baseUrlError = validateModelBaseUrl(baseUrl);
+    if (baseUrlError) {
+      res.status(400).json({ error: baseUrlError });
+      return;
+    }
+    if (!isLocalBaseUrl(baseUrl) && body.consent !== true) {
+      res.status(400).json({
+        error: 'Remote model endpoints require explicit consent',
+      });
+      return;
+    }
+  }
+
   let styleName: string;
   let styleXml: string | undefined;
   try {
     if (body.csl?.trim()) {
-      styleXml = body.csl;
+      const xml = body.csl.trim();
+      if (xml.length > 1_000_000) {
+        res.status(400).json({ error: 'CSL file is too large' });
+        return;
+      }
+      if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+        res.status(400).json({
+          error: 'CSL files with DTDs or entities are not allowed',
+        });
+        return;
+      }
+      styleXml = xml;
       styleName = `custom-${shortHash(styleXml).slice(0, 8)}`;
       registerCslStyle(styleName, styleXml);
     } else {
@@ -439,9 +531,7 @@ app.use((req, res, next) => {
 app.use(
   (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     console.error(error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    });
+    res.status(500).json({ error: 'Internal server error' });
   },
 );
 
@@ -493,6 +583,22 @@ function draftSummary(row: ReturnType<typeof listDrafts>[number]) {
     model: row.model,
     createdAt: row.created_at,
   };
+}
+
+function validateModelBaseUrl(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return 'Invalid model base URL';
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return 'Model base URL must use http or https';
+  }
+  if (url.username || url.password) {
+    return 'Model base URL must not contain credentials';
+  }
+  return null;
 }
 
 function isLocalBaseUrl(value: string): boolean {
