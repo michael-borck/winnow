@@ -5,7 +5,7 @@
   "description": "Desktop shell for Winnow",
   "homepage": "https://winnow.borck.education",
   "license": "MIT",
-  "author": "Michael Borck",
+  "author": "Michael Borck <michael@borck.education>",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
