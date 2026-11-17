@@ -65,67 +65,82 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="top">
+      <aside className="sidebar">
         <div className="brand">
           <span className="mark">W</span>
           <div>
             <h1>Winnow</h1>
-            <p className="muted">{state.project.name}</p>
+            <p className="muted">Local literature review</p>
           </div>
         </div>
-        <div className="run-picker">
-          <label htmlFor="run">Run</label>
-          <select
-            id="run"
-            value={runId}
-            onChange={(event) => {
-              setRunId(event.target.value);
-              void refresh(event.target.value);
-            }}
-          >
-            {state.runs.map((run) => (
-              <option key={run.id} value={run.id}>
-                {run.query} · {run.id}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
 
-      {state.run ? (
-        <section className="summary">
-          <div className="chips">
-            <Chip label="Included" value={state.counts?.screening.included ?? 0} />
-            <Chip label="Excluded" value={state.counts?.screening.excluded ?? 0} />
-            <Chip label="Undecided" value={state.counts?.screening.undecided ?? 0} />
-            <Chip label="Claims" value={state.counts?.evidence.claims ?? 0} />
-            <Chip label="Held" value={state.heldCount} />
+        <div className="project">
+          <div className="name">{state.project.name}</div>
+          <div className="meta">
+            {state.run
+              ? `${state.run.query} · ${state.run.id}`
+              : 'No completed run'}
           </div>
-          <p className="query">{state.run.query}</p>
-        </section>
-      ) : (
-        <section className="empty">
-          <h2>No completed run yet</h2>
-          <p>Run `winnow search "topic"` in this project, then reload.</p>
-        </section>
-      )}
+        </div>
 
-      {error ? <p className="error banner">{error}</p> : null}
+        <nav className="nav" aria-label="Sections">
+          {(['sources', 'evidence', 'drafts', 'queue'] as const).map((item) => (
+            <button
+              key={item}
+              className={tab === item ? 'nav-item active' : 'nav-item'}
+              onClick={() => setTab(item)}
+              aria-current={tab === item ? 'page' : undefined}
+            >
+              {label(item)}
+            </button>
+          ))}
+        </nav>
 
-      {state.run ? (
-        <>
-          <nav className="tabs">
-            {(['sources', 'evidence', 'drafts', 'queue'] as const).map((item) => (
-              <button
-                key={item}
-                className={tab === item ? 'tab active' : 'tab'}
-                onClick={() => setTab(item)}
-              >
-                {label(item)}
-              </button>
-            ))}
-          </nav>
+        <div className="footer">v1.0.0 · local</div>
+      </aside>
 
+      <div className="main">
+        <header className="top">
+          <div className="run-picker">
+            <label htmlFor="run">Run</label>
+            <select
+              id="run"
+              value={runId}
+              onChange={(event) => {
+                setRunId(event.target.value);
+                void refresh(event.target.value);
+              }}
+            >
+              {state.runs.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.query} · {run.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        </header>
+
+        {state.run ? (
+          <section className="summary">
+            <div className="chips">
+              <Chip label="Included" value={state.counts?.screening.included ?? 0} />
+              <Chip label="Excluded" value={state.counts?.screening.excluded ?? 0} />
+              <Chip label="Undecided" value={state.counts?.screening.undecided ?? 0} />
+              <Chip label="Claims" value={state.counts?.evidence.claims ?? 0} />
+              <Chip label="Held" value={state.heldCount} />
+            </div>
+            <p className="query">{state.run.query}</p>
+          </section>
+        ) : (
+          <section className="empty">
+            <h2>No completed run yet</h2>
+            <p>Run `winnow search "topic"` in this project, then reload.</p>
+          </section>
+        )}
+
+        {error ? <p className="error banner">{error}</p> : null}
+
+        {state.run ? (
           <main className="panel">
             {tab === 'sources' ? (
               <SourcesTab runId={runId} onChanged={() => refresh()} />
@@ -137,8 +152,8 @@ export default function App() {
               <QueueTab runId={runId} onChanged={() => refresh()} />
             )}
           </main>
-        </>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

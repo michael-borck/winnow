@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winnow GUI options</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0f0d;
+    --panel: #111713;
+    --panel-2: #151d18;
+    --panel-3: #1a231d;
+    --text: #e8f0e8;
+    --muted: #93a398;
+    --line: #26332b;
+    --accent: #8fd6a8;
+    --accent-dim: #2a4a35;
+    --warn: #d8b26a;
+    --danger: #d98a8a;
+    --include: #8fd6a8;
+    --exclude: #d98a8a;
+    --maybe: #d8b26a;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .35);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 800px at 10% -10%, rgba(143, 214, 168, .08), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font: 14px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .page {
+    width: min(1500px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 28px 0 56px;
+  }
+
+  .page-head {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  h1 { margin: 6px 0 4px; font-size: 28px; letter-spacing: -.02em; }
+  .lede { margin: 0; color: var(--muted); max-width: 70ch; }
+
+  .switcher {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 18px;
+  }
+
+  .switcher button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .switcher button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .app {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    min-height: 620px;
+  }
+
+  .app.light {
+    color-scheme: light;
+    --panel: #f7faf7;
+    --panel-2: #eef4ee;
+    --panel-3: #e6eee6;
+    --text: #101810;
+    --muted: #5a665d;
+    --line: #d5dfd5;
+    --accent: #1f7a45;
+    --accent-dim: #d8efdf;
+    --warn: #8a5a00;
+    --danger: #a12d2d;
+    --include: #1f7a45;
+    --exclude: #a12d2d;
+    --maybe: #8a5a00;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .16);
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .mark {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    border: 1.5px solid currentColor;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .run {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .tabs span {
+    padding: 9px 10px;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+  }
+
+  .tabs span.active {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .content { padding: 14px; }
+
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    border-radius: 999px;
+    padding: 5px 9px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .chip strong { color: var(--text); }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, .85fr);
+    gap: 12px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+
+  .panel-head h3 { margin: 0; font-size: 13px; }
+  .panel-head .muted { color: var(--muted); font-size: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.title { max-width: 360px; }
+  .muted { color: var(--muted); }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+  }
+
+  .tag.include { color: var(--include); border-color: color-mix(in srgb, var(--include) 40%, transparent); background: color-mix(in srgb, var(--include) 10%, transparent); }
+  .tag.exclude { color: var(--exclude); border-color: color-mix(in srgb, var(--exclude) 40%, transparent); background: color-mix(in srgb, var(--exclude) 10%, transparent); }
+  .tag.maybe { color: var(--maybe); border-color: color-mix(in srgb, var(--maybe) 40%, transparent); background: color-mix(in srgb, var(--maybe) 10%, transparent); }
+  .tag.core { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+  .detail { padding: 12px; }
+  .detail h4 { margin: 0 0 4px; font-size: 14px; letter-spacing: -.01em; }
+  .detail .doi { color: var(--muted); font-size: 12px; word-break: break-all; }
+  .detail p { color: var(--muted); }
+  .abstract {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0;
+    color: var(--text);
+    font-size: 12.5px;
+  }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  button.action {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 9px;
+    font: inherit;
+    cursor: pointer;
+  }
+  button.action.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .sidebar-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    min-height: 620px;
+  }
+
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: var(--panel-2);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sidebar .brand { padding: 0 4px; }
+  .project {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 9px 10px;
+  }
+  .project .name { font-weight: 650; font-size: 13px; }
+  .project .meta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav span { padding: 8px 9px; border-radius: 8px; color: var(--muted); font-size: 13px; }
+  .nav span.active { background: var(--accent-dim); color: var(--accent); }
+  .sidebar .footer { margin-top: auto; color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 10px; }
+
+  .main { min-width: 0; }
+  .main .topbar { border-top: 0; }
+
+  .notes { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+  .notes li { margin: 4px 0; }
+
+  .recommend {
+    margin-top: 22px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .recommend h2 { margin: 0 0 6px; font-size: 16px; }
+  .recommend p { margin: 0; color: var(--muted); }
+
+  .option-head { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 10px; }
+  .badge { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-dim); color: var(--accent); font-weight: 700; flex: none; }
+  .option-head h2 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+  .option-head p { margin: 2px 0 0; color: var(--muted); }
+
+  .option-description { margin: 0 0 12px; color: var(--muted); }
+
+  @media (max-width: 1100px) {
+    .workspace { grid-template-columns: 1fr; }
+    .sidebar-layout { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+    .sidebar .footer { margin-top: 0; border-top: 0; padding-top: 0; }
+    .nav { flex-direction: row; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">GUI design options</div>
+      <h1>Winnow review UI</h1>
+      <p class="lede">Three directions for the local review interface. Same data and workflow, different shell. Use the switcher to compare.</p>
+    </div>
+  </header>
+
+  <div class="switcher" id="switcher">
+    <button data-option="a" class="active">A · Top bar + tabs</button>
+    <button data-option="b">B · Sidebar + top bar</button>
+    <button data-option="c">C · Light sidebar</button>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="recommend">
+    <h2>Recommendation</h2>
+    <p>Option B is the strongest shell for long review sessions: the project and run context stay visible, and the main column has room for triage and evidence. Option C is the accessibility-first variant. Option A is the compact fallback if the top bar is preferred.</p>
+  </div>
+</div>
+
+<script>
+  const sources = [
+    {
+      id: 'doi:10.1/a',
+      decision: 'include',
+      priority: 'core',
+      title: 'Retrieval improves answer accuracy',
+      year: 2024,
+      venue: 'JASIST',
+      citability: 'citable',
+      reason: 'measures accuracy',
+      abstract: 'We evaluated retrieval-augmented generation across 120 tasks. Retrieval improved answer accuracy and reduced unsupported claims.'
+    },
+    {
+      id: 'doi:10.1/b',
+      decision: 'maybe',
+      priority: 'supporting',
+      title: 'Citation verification in literature reviews',
+      year: 2023,
+      venue: 'CHI',
+      citability: 'citable_marked',
+      reason: 'needs full text',
+      abstract: 'A controlled study of citation verification tools for literature reviews.'
+    },
+    {
+      id: 'doi:10.1/c',
+      decision: 'exclude',
+      priority: 'peripheral',
+      title: 'A survey of retrieval systems',
+      year: 2022,
+      venue: 'SIGIR',
+      citability: 'citable',
+      reason: 'off topic',
+      abstract: 'A broad survey of retrieval architectures and evaluation methods.'
+    }
+  ];
+
+  const state = { option: 'a' };
+
+  function chips() {
+    return `
+      <div class="chips">
+        <span class="chip"><strong>42</strong> included</span>
+        <span class="chip"><strong>18</strong> excluded</span>
+        <span class="chip"><strong>6</strong> undecided</span>
+        <span class="chip"><strong>12</strong> claims</span>
+        <span class="chip"><strong>2</strong> held</span>
+      </div>`;
+  }
+
+  function sourceTable() {
+    const rows = sources.map((source) => `
+      <tr>
+        <td><span class="tag ${source.decision}">${source.decision}</span></td>
+        <td><span class="tag ${source.priority}">${source.priority}</span></td>
+        <td class="title">${source.title}<div class="muted">${source.id}</div></td>
+        <td>${source.year}</td>
+        <td class="muted">${source.venue}</td>
+        <td class="muted">${source.citability}</td>
+      </tr>`).join('');
+    return `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Sources</h3>
+          <span class="muted">42 records · 12 selected</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Decision</th>
+              <th>Priority</th>
+              <th>Title</th>
+              <th>Year</th>
+              <th>Venue</th>
+              <th>Citability</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function detail() {
+    const source = sources[0];
+    return `
+      <div class="panel detail">
+        <h4>${source.title}</h4>
+        <div class="doi">${source.id}</div>
+        <div class="abstract">${source.abstract}</div>
+        <div class="actions">
+          <button class="action primary">Include</button>
+          <button class="action">Maybe</button>
+          <button class="action">Exclude</button>
+        </div>
+      </div>`;
+  }
+
+  function content() {
+    return `<div class="content">${chips()}<div class="workspace">${sourceTable()}${detail()}</div></div>`;
+  }
+
+  function topbar() {
+    return `
+      <div class="topbar">
+        <div class="brand"><span class="mark">W</span> Winnow</div>
+        <div class="run">RAG review · run-2026-11-17</div>
+      </div>`;
+  }
+
+  function tabs() {
+    return `
+      <div class="tabs">
+        <span class="active">Sources</span><span>Evidence</span><span>Drafts</span><span>Queue</span>
+      </div>`;
+  }
+
+  function renderTopBar() {
+    return `<div class="app">${topbar()}${tabs()}${content()}</div>`;
+  }
+
+  function renderSidebar(light) {
+    return `
+      <div class="app sidebar-layout ${light ? 'light' : ''}">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">W</span> Winnow</div>
+          <div class="project">
+            <div class="name">RAG review</div>
+            <div class="meta">run-2026-11-17 · 42 sources</div>
+          </div>
+          <div class="nav">
+            <span class="active">Sources</span><span>Evidence</span><span>Drafts</span><span>Queue</span>
+          </div>
+          <div class="footer">v1.0.0 · local</div>
+        </aside>
+        <div class="main">${topbar()}${content()}</div>
+      </div>`;
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    if (state.option === 'a') {
+      app.innerHTML = `<div class="option-head"><span class="badge">A</span><div><h2>Top bar + tabs</h2><p>Current shape, tightened. Fast to scan, familiar.</p></div></div>${renderTopBar()}`;
+    } else if (state.option === 'b') {
+      app.innerHTML = `<div class="option-head"><span class="badge">B</span><div><h2>Sidebar + top bar</h2><p>Project context stays visible. More room for the review column.</p></div></div>${renderSidebar(false)}`;
+    } else {
+      app.innerHTML = `<div class="option-head"><span class="badge">C</span><div><h2>Light sidebar</h2><p>High-contrast light theme. Same layout as B.</p></div></div>${renderSidebar(true)}`;
+    }
+
+    document.querySelectorAll('[data-option]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.option === state.option);
+    });
+  }
+
+  document.querySelectorAll('[data-option]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.option = button.dataset.option;
+      render();
+    });
+  });
+
+  render();
+</script>
+</body>
+</html>
