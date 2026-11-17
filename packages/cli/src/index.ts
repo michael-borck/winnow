@@ -194,6 +194,7 @@ interface ReviewCliOptions {
   format: string;
   out?: string;
   save: boolean;
+  allowRemoteModel?: boolean;
 }
 
 interface StanceCliOptions {
@@ -225,6 +226,7 @@ interface ArgueCliOptions {
   out?: string;
   save: boolean;
   allowSuggested?: boolean;
+  allowRemoteModel?: boolean;
 }
 
 interface CounterCliOptions {
@@ -931,6 +933,7 @@ program
   .option('--writer <writer>', 'template or model', 'template')
   .option('--model <name>', 'model name for --writer model')
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
+  .option('--allow-remote-model', 'consent to sending model data to a non-local endpoint')
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--style <style>', 'apa, vancouver or harvard', 'apa')
@@ -950,6 +953,7 @@ program
       ? modelEndpointOptions({
           model: options.supportModel ?? options.model,
           baseUrl: options.baseUrl,
+          allowRemoteModel: options.allowRemoteModel,
         })
       : undefined;
     const { style, xml: styleXml } = await resolveCitationStyle(options);
@@ -995,6 +999,20 @@ program
         return;
       }
 
+      const remoteModel =
+        modelOptions && !isLocalBaseUrl(modelOptions.baseUrl)
+          ? modelOptions
+          : supportModelOptions &&
+              !isLocalBaseUrl(supportModelOptions.baseUrl)
+            ? supportModelOptions
+            : null;
+      if (remoteModel) {
+        process.stderr.write(
+          `winnow: sending ${bundle.claims.length} claims from ` +
+            `${bundle.sources.length} sources to ${hostOf(remoteModel.baseUrl)}\n`,
+        );
+      }
+
       const raw = modelOptions
         ? await generateModelDraft(bundle, {
             ...modelOptions,
@@ -1035,6 +1053,22 @@ program
         draftId = row.id;
       }
 
+      if (remoteModel) {
+        recordAuditEvent(project.db, {
+          runId,
+          actor: 'user',
+          action: 'remote_model_consent',
+          payload: {
+            draftId,
+            host: hostOf(remoteModel.baseUrl),
+            claims: bundle.claims.length,
+            sources: bundle.sources.length,
+            writer,
+            support: Boolean(options.support),
+          },
+        });
+      }
+
       const output = format === 'json' ? formatDraftJson(checked) : markdown;
       await emit(output, options.out);
       process.stderr.write(reviewSummary(checked, draftId));
@@ -1060,6 +1094,7 @@ program
   .option('--writer <writer>', 'template or model', 'template')
   .option('--model <name>', 'model name for --writer model')
   .option('--base-url <url>', 'OpenAI-compatible base URL', 'http://localhost:11434/v1')
+  .option('--allow-remote-model', 'consent to sending model data to a non-local endpoint')
   .option('--support', 'run a separate support entailment pass')
   .option('--support-model <name>', 'model for the support pass (default: --model)')
   .option('--style <style>', 'apa, vancouver or harvard', 'apa')
@@ -1080,6 +1115,7 @@ program
       ? modelEndpointOptions({
           model: options.supportModel ?? options.model,
           baseUrl: options.baseUrl,
+          allowRemoteModel: options.allowRemoteModel,
         })
       : undefined;
     const { style, xml: styleXml } = await resolveCitationStyle(options);
@@ -1132,6 +1168,20 @@ program
         );
       }
 
+      const remoteModel =
+        modelOptions && !isLocalBaseUrl(modelOptions.baseUrl)
+          ? modelOptions
+          : supportModelOptions &&
+              !isLocalBaseUrl(supportModelOptions.baseUrl)
+            ? supportModelOptions
+            : null;
+      if (remoteModel) {
+        process.stderr.write(
+          `winnow: sending ${bundle.claims.length} claims from ` +
+            `${bundle.sources.length} sources to ${hostOf(remoteModel.baseUrl)}\n`,
+        );
+      }
+
       const map = buildArgumentMap(bundle, thesis);
       const raw = modelOptions
         ? await generateModelDraft(bundle, {
@@ -1173,6 +1223,22 @@ program
           basis: checked.basis,
         });
         draftId = row.id;
+      }
+
+      if (remoteModel) {
+        recordAuditEvent(project.db, {
+          runId,
+          actor: 'user',
+          action: 'remote_model_consent',
+          payload: {
+            draftId,
+            host: hostOf(remoteModel.baseUrl),
+            claims: bundle.claims.length,
+            sources: bundle.sources.length,
+            writer,
+            support: Boolean(options.support),
+          },
+        });
       }
 
       const output = format === 'json' ? formatDraftJson(checked) : markdown;
@@ -2495,6 +2561,7 @@ async function resolveCitationStyle(options: {
 function modelEndpointOptions(options: {
   model?: string;
   baseUrl?: string;
+  allowRemoteModel?: boolean;
 }): { baseUrl: string; model: string; apiKey?: string } {
   if (!options.model?.trim()) {
     throw new UsageError(
@@ -2503,9 +2570,10 @@ function modelEndpointOptions(options: {
   }
   const baseUrl =
     options.baseUrl?.trim() || 'http://localhost:11434/v1';
-  if (!isLocalBaseUrl(baseUrl)) {
-    process.stderr.write(
-      `winnow: sending the evidence bundle to ${hostOf(baseUrl)}\n`,
+  if (!isLocalBaseUrl(baseUrl) && !options.allowRemoteModel) {
+    throw new UsageError(
+      `Refusing to send model data to ${hostOf(baseUrl)}. ` +
+        'Re-run with --allow-remote-model to consent.',
     );
   }
   const apiKey =

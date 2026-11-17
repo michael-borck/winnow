@@ -223,9 +223,9 @@ local Ollama endpoint at `http://localhost:11434/v1`; use `--base-url` for LM
 Studio, llama.cpp or a remote provider. The model receives only the evidence
 bundle: no full corpus, no other sources. Malformed output is rejected, and
 every returned sentence still runs through checks 1–5. A non-local base URL
-prints a warning because the evidence bundle leaves the machine. The web UI
-requires an explicit consent checkbox before it will send the bundle to a remote
-endpoint.
+requires `--allow-remote-model`; the CLI prints the host and the number of
+claims and sources it will send. The web UI uses an explicit consent checkbox
+before it will send the bundle to a remote endpoint.
 
 `--support` adds a second, separate entailment pass. Each evidence sentence is
 checked against its quotes and labelled `supported`, `partial`, `unsupported`
