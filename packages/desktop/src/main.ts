@@ -46,7 +46,9 @@ async function chooseProject(): Promise<string | undefined> {
 
 function startServer(root: string): Promise<number> {
   return new Promise((resolve, reject) => {
-    const serverPath = path.resolve(__dirname, '../../server/dist/index.js');
+    const serverPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'server', 'dist', 'index.js')
+      : path.resolve(__dirname, '../../server/dist/index.js');
     if (!existsSync(serverPath)) {
       reject(new Error('Server build not found. Run `npm run build` first.'));
       return;
@@ -130,10 +132,53 @@ async function createWindow(port: number): Promise<void> {
     return { action: 'deny' };
   });
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const local = `http://127.0.0.1:${port}/`;
+    if (!url.startsWith(local)) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
+
   await mainWindow.loadURL(`http://127.0.0.1:${port}/`);
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+let modelCheckShown = false;
+
+async function localModelAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch('http://127.0.0.1:11434/api/tags', {
+      signal: AbortSignal.timeout(1_500),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function checkFirstRunModel(): Promise<boolean> {
+  if (modelCheckShown) return true;
+  modelCheckShown = true;
+  if (await localModelAvailable()) return true;
+
+  const result = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Winnow',
+    message: 'No local model found',
+    detail:
+      'Winnow could not reach Ollama at 127.0.0.1:11434. Template drafts still work. Install Ollama and pull a model to use the model writer.',
+    buttons: ['Continue', 'Get Ollama', 'Quit'],
+    defaultId: 0,
+    cancelId: 2,
+  });
+
+  if (result.response === 1) {
+    await shell.openExternal('https://ollama.com/download');
+  }
+  return result.response !== 2;
 }
 
 async function openProject(root: string): Promise<void> {
@@ -141,9 +186,13 @@ async function openProject(root: string): Promise<void> {
     serverProcess.kill();
     serverProcess = null;
   }
-  projectRoot = root;
-  const port = await startServer(root);
-  if (mainWindow) {
+    projectRoot = root;
+    const port = await startServer(root);
+    if (!(await checkFirstRunModel())) {
+      app.quit();
+      return;
+    }
+    if (mainWindow) {
     await mainWindow.loadURL(`http://127.0.0.1:${port}/`);
   } else {
     await createWindow(port);

@@ -24,6 +24,11 @@
     "dev": "npm run build -w @michaelborck/winnow-core && tsx packages/cli/src/index.ts",
     "dev:server": "npm run build -w @michaelborck/winnow-core && tsx packages/server/src/index.ts",
     "dev:web": "npm run dev -w @michaelborck/winnow-web",
+    "prepare:desktop": "npm run build && node packages/desktop/scripts/prepare-resources.mjs",
+    "package:desktop": "npm run prepare:desktop && npm run package -w @michaelborck/winnow-desktop",
+    "package:desktop:mac": "npm run prepare:desktop && npm run package:mac -w @michaelborck/winnow-desktop",
+    "package:desktop:win": "npm run prepare:desktop && npm run package:win -w @michaelborck/winnow-desktop",
+    "package:desktop:linux": "npm run prepare:desktop && npm run package:linux -w @michaelborck/winnow-desktop",
     "desktop": "npm run build && npm run start -w @michaelborck/winnow-desktop"
   },
   "devDependencies": {
