@@ -51,8 +51,10 @@ module.exports = {
     icon: 'assets/icon.png',
     category: 'Education',
     executableName: 'winnow',
+    artifactName: 'Winnow-${version}-${arch}.${ext}',
   },
   deb: {
+    packageName: 'winnow',
     depends: [
       'libgtk-3-0',
       'libnotify4',
