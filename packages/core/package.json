@@ -1,6 +1,6 @@
 {
   "name": "@michaelborck/winnow-core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Verification, retrieval, ranking and evidence primitives for Winnow",
   "type": "module",
   "license": "MIT",

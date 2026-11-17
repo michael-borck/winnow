@@ -2,7 +2,7 @@
 
 Winnow separates three jobs that literature tools often blur: retrieval, verification, and judgement. Code does retrieval and verification. A human does judgement. A model can help with prose, but it never decides whether a source exists or whether a claim is true.
 
-This page describes the method, the choices behind it, and the published guidance it follows. [SPEC.md](../SPEC.md) is the normative specification. The [ADRs](adr/README.md) record the reasons for individual decisions. The text below describes the method as specified, with a short implementation status section where v0.5 differs.
+This page describes the method, the choices behind it, and the published guidance it follows. [SPEC.md](../SPEC.md) is the normative specification. The [ADRs](adr/README.md) record the reasons for individual decisions. The text below describes the method as specified, with a short implementation status section where the build differs.
 
 ## Scope: narrative and scoping reviews
 
@@ -26,7 +26,7 @@ The current implementation searches OpenAlex and Crossref, with Semantic Scholar
 
 Records are deduplicated by DOI, then by normalised title, first author and year. A preprint and its published version are linked as variants rather than merged. The published version is marked as the version of record, both identifiers are kept, and the alternate DOI is noted in BibTeX and CSL exports.
 
-Provider lists are fused with reciprocal rank fusion (RRF, k = 60) rather than by comparing provider scores that do not mean the same thing (ADR 0010; Cormack et al., 2009). Deterministic tie-breakers follow. The specification uses completeness, recency, citation percentile where the provider supplies it, and open-access availability. v0.5 uses completeness, recency, raw citation count, and title. Citation count is a tie-breaker, not a quality score or the main relevance signal. Winnow computes no composite quality score.
+Provider lists are fused with reciprocal rank fusion (RRF, k = 60) rather than by comparing provider scores that do not mean the same thing (ADR 0010; Cormack et al., 2009). Deterministic tie-breakers follow. The specification uses completeness, recency, citation percentile where the provider supplies it, and open-access availability. v1.0 uses completeness, recency, raw citation count, and title. Citation count is a tie-breaker, not a quality score or the main relevance signal. Winnow computes no composite quality score.
 
 This is where the method refuses a common shortcut. The number of papers that report a finding is not a measure of the finding's strength. Five small surveys do not outweigh one well-run trial. Winnow ranks retrieval, then leaves the judgement about evidence strength to Weigh and to the reviewer.
 
@@ -100,13 +100,13 @@ This is reproducibility as an audit trail. It is not a promise that a live searc
 
 ## Implementation status
 
-The v0.5 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell. A few guarantees are specified but not yet enforced:
+The v1.0 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell with installers. A few guarantees are specified but not yet enforced:
 
 - Quote checking verifies the quote at its declared span in the normalised source text. Source-text hash pinning is specified, not yet stored.
 - Model artifact verification reads Ollama digests and quantization. Other OpenAI-compatible endpoints are checked for availability but usually cannot supply a weight digest.
-- The Weigh step is specified. Study design, quality flags, and coverage counts are not yet computed as a separate command.
-- A per-project consent gate with a payload preview is specified for cloud models. v0.5 prints a warning when the model endpoint is not local.
-- Independent duplicate extraction, exhaustive search mode, installers, and notarization are not implemented.
+- The Weigh step is specified but deferred. Study design and quality flags are not computed.
+- Remote model calls require explicit consent: the CLI uses `--allow-remote-model`, the web UI uses a checkbox, and the server requires a consent flag. A per-project consent record is still specified.
+- Independent duplicate extraction and exhaustive search mode are not implemented. Installers and notarization are wired for CI; local macOS signing is blocked by a macOS 25.6 AppleDouble issue.
 
 The method above describes the intended behaviour. Where the build is weaker, the tool should say so rather than imply the stronger guarantee.
 

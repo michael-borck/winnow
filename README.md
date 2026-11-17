@@ -11,13 +11,13 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v0.5 in progress. The CLI implements `init`, `brief`, `search`,
-`screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`,
-`verify`, `replay`, `rerun` and `doctor`; template or local-model writers,
-support triage, citeproc styles, citation chasing, custom CSL files, full
-payload replay, a local web UI and a desktop shell are available. Installers
-and notarization are next. v1 targets structured narrative and scoping reviews,
-not systematic reviews. See
+**Status:** v1.0.0. The CLI implements `init`, `brief`, `search`, `screen`,
+`extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`,
+`replay`, `rerun` and `doctor`; template or local-model writers, support triage,
+citeproc styles, citation chasing, custom CSL files, full payload replay, a
+local web UI and a desktop shell are available. Installers and notarization are
+wired for CI. v1 targets structured narrative and scoping reviews, not
+systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).
 
 **Website:** <https://winnow.borck.education>
@@ -397,8 +397,10 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   styles, review queue, citation chasing, citability, dedupe, ranking,
   formatting, project lifecycle, database updates and replay.
 
-Not yet: installers and notarization for the desktop app, and a richer visual
-draft diff.
+Not yet: a richer visual draft diff. The Weigh stage is specified but deferred;
+study design and quality flags are not computed. SYNERGY and counter-evidence
+recall benchmarks are also deferred; the planted-error checks 1-5 are in the
+test suite.
 
 ## Why another literature tool
 
@@ -424,14 +426,15 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v0.4 in progress | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun, doctor |
-| Local web UI | v0.4 in progress | Browse, triage, read drafts, restore holds |
-| Desktop app | v0.5 in progress | Development shell around the local UI; installers next |
-| Library | v0.1 scaffold | `@michaelborck/winnow-core` for other tools |
+| CLI | v1.0 | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun, doctor |
+| Local web UI | v1.0 | Browse, triage, read drafts, restore holds |
+| Desktop app | v1.0 | Electron shell and installers for macOS, Windows and Linux |
+| Library | v1.0 | `@michaelborck/winnow-core` for other tools |
 
 ## Documentation
 
 - [SPEC.md](SPEC.md) — the product and technical specification
+- [CHANGELOG.md](CHANGELOG.md) — release notes
 - [docs/method.md](docs/method.md) — how the review method works and the guidance it follows
 - [docs/adr](docs/adr/README.md) — architecture decision records
 - [docs/reviews](docs/reviews/README.md) — external spec audits and disposition

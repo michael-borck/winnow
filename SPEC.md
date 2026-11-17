@@ -6,7 +6,7 @@
 **Repo:** `winnow`
 **Binary:** `winnow`
 **Packages:** `@michaelborck/winnow-core`, `@michaelborck/winnow-cli`
-**Implementation:** v0.1 scaffold plus v0.5 partial — CLI (`init`, `brief`, `search`, `screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`, `rerun`, `doctor`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, live rerun drift reports, local diagnostics, a localhost web UI, and an Electron shell
+**Implementation:** v1.0.0 — CLI (`init`, `brief`, `search`, `screen`, `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`, `replay`, `rerun`, `doctor`), template and local-model writers, support pass, citeproc and custom CSL, citation chasing, full payload replay, live rerun drift reports, local diagnostics, a localhost web UI, and an Electron shell with installers
 **License:** MIT
 
 > Find, verify, and weigh the literature. Locally.
@@ -1010,7 +1010,7 @@ service, not a second implementation of the pipeline.
 | **v0.3** | Review and Argue, evidence bundle, sentence types, checks 1–6, support triage, counter-evidence pass, citation rendering, drafting evaluation |
 | **v0.4** | Local web UI: browse, triage, read, edit drafts, review queue |
 | **v0.5** | Desktop shell (partial: Electron window, project picker, server lifecycle); installers, notarization and first-run model setup next |
-| **v1.0** | Hardening, docs, reproducibility report, release |
+| **v1.0** | Hardening, docs, reproducibility report, release; Weigh and full SYNERGY/counter-evidence benchmarks deferred |
 
 Evaluation is built with each feature, not at v1.0. Screening is measured
 against SYNERGY and published reviews; counter-evidence recall against included

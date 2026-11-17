@@ -125,7 +125,7 @@ import {
   type VerifiedDoi,
 } from '@michaelborck/winnow-core';
 
-const VERSION = '0.1.0';
+const VERSION = '1.0.0';
 
 class UsageError extends Error {
   constructor(message: string) {
