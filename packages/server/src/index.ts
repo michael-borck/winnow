@@ -25,6 +25,7 @@ import {
   ModelError,
   normaliseStyle,
   openProject,
+  recordExtractionValue,
   recordScreeningDecision,
   registerCslStyle,
   renderDraftMarkdown,
@@ -263,6 +264,56 @@ app.get('/api/evidence', (req, res) => {
     counts: summary.counts,
     rows: summary.rows,
   });
+});
+
+app.post('/api/evidence', (req, res) => {
+  const {
+    runId,
+    sourceId,
+    field,
+    value,
+    quote,
+    location,
+    reviewer,
+  } = req.body as {
+    runId?: string;
+    sourceId?: string;
+    field?: string;
+    value?: string;
+    quote?: string;
+    location?: string;
+    reviewer?: string;
+  };
+
+  if (!runId || !sourceId || !field?.trim() || !value?.trim()) {
+    res.status(400).json({
+      error: 'runId, sourceId, field and value are required',
+    });
+    return;
+  }
+
+  const screening = loadScreeningState(project.db, runId);
+  const item = screening.sources.find(
+    (source) => source.source.id === sourceId,
+  );
+  if (!item || item.decision !== 'include') {
+    res.status(400).json({
+      error: 'source is not a human-confirmed include in this run',
+    });
+    return;
+  }
+
+  recordExtractionValue(project.db, {
+    runId,
+    sourceId,
+    field: field.trim(),
+    value: value.trim(),
+    quote: quote?.trim() || undefined,
+    location: location?.trim() || undefined,
+    reviewer: reviewer?.trim() || 'web',
+  });
+
+  res.json({ ok: true });
 });
 
 app.post('/api/review', async (req, res) => {

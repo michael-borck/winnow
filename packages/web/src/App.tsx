@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   apiGet,
   apiPost,
@@ -401,11 +401,26 @@ function EvidenceTab({ runId }: { runId: string }) {
   const [data, setData] = useState<EvidenceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function reload(): Promise<void> {
+    try {
+      const result = await apiGet<EvidenceResponse>(
+        `/api/evidence?run=${encodeURIComponent(runId)}`,
+      );
+      setData(result);
+      setError(null);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     apiGet<EvidenceResponse>(`/api/evidence?run=${encodeURIComponent(runId)}`)
       .then((result) => {
-        if (!cancelled) setData(result);
+        if (!cancelled) {
+          setData(result);
+          setError(null);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(errorText(err));
@@ -416,7 +431,7 @@ function EvidenceTab({ runId }: { runId: string }) {
   }, [runId]);
 
   if (error) return <p className="error" role="alert">{error}</p>;
-  if (!data) return <p>Loading evidence…</p>;
+  if (!data) return <p role="status" aria-live="polite">Loading evidence…</p>;
   if (!data.rows.length) return <p>No human-confirmed includes yet.</p>;
 
   return (
@@ -426,13 +441,68 @@ function EvidenceTab({ runId }: { runId: string }) {
         {data.counts.complete} complete
       </p>
       {data.rows.map((row) => (
-        <EvidenceCard key={row.source.id} row={row} fields={data.fields} />
+        <EvidenceCard
+          key={row.source.id}
+          row={row}
+          fields={data.fields}
+          runId={runId}
+          onChanged={reload}
+        />
       ))}
     </div>
   );
 }
 
-function EvidenceCard({ row, fields }: { row: EvidenceRow; fields: string[] }) {
+function EvidenceCard({
+  row,
+  fields,
+  runId,
+  onChanged,
+}: {
+  row: EvidenceRow;
+  fields: string[];
+  runId: string;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [quotes, setQuotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function startEdit(): void {
+    setValues({ ...row.values });
+    setQuotes({ ...row.quotes });
+    setError(null);
+    setEditing(true);
+  }
+
+  async function save(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      for (const field of fields) {
+        const value = values[field]?.trim();
+        if (!value) continue;
+        await apiPost('/api/evidence', {
+          runId,
+          sourceId: row.source.id,
+          field,
+          value,
+          ...(quotes[field]?.trim() ? { quote: quotes[field].trim() } : {}),
+          reviewer: 'web',
+        });
+      }
+      setEditing(false);
+      await onChanged();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <article className="card">
       <div className="card-top">
@@ -442,38 +512,94 @@ function EvidenceCard({ row, fields }: { row: EvidenceRow; fields: string[] }) {
             {row.source.authors.slice(0, 3).join(', ')} · {row.source.year ?? 'n.d.'}
           </p>
         </div>
-        <span className="badge">{row.relevance ?? 'included'}</span>
+        <div className="buttons">
+          <button className="ghost" onClick={startEdit} disabled={busy}>
+            Edit
+          </button>
+          <span className="badge">{row.relevance ?? 'included'}</span>
+        </div>
       </div>
-      <table className="evidence">
-        <tbody>
-          {fields.map((field) => {
-            const value = row.values[field];
-            const suggestion = row.suggestions[field];
-            return (
-              <tr key={field}>
-                <th>{field}</th>
-                <td>
-                  {value ? (
-                    <span>{value}</span>
-                  ) : suggestion ? (
-                    <span className="muted">
-                      suggested: {suggestion.value}
-                      {suggestion.confidence != null
-                        ? ` (${suggestion.confidence.toFixed(2)})`
-                        : ''}
-                    </span>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                  {row.quotes[field] ? (
-                    <blockquote>{row.quotes[field]}</blockquote>
-                  ) : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      {editing ? (
+        <form className="evidence-edit" onSubmit={save}>
+          {fields.map((field) => (
+            <label key={field}>
+              <span>{field}</span>
+              <input
+                value={values[field] ?? ''}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }))
+                }
+              />
+              {field !== 'quote' ? (
+                <input
+                  className="quote"
+                  value={quotes[field] ?? ''}
+                  onChange={(event) =>
+                    setQuotes((current) => ({
+                      ...current,
+                      [field]: event.target.value,
+                    }))
+                  }
+                  placeholder="quote (optional)"
+                />
+              ) : null}
+            </label>
+          ))}
+          <div className="buttons">
+            <button type="submit" disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setEditing(false)}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+          </div>
+          {error ? <p className="error" role="alert">{error}</p> : null}
+        </form>
+      ) : (
+        <table className="evidence">
+          <tbody>
+            {fields.map((field) => {
+              const value = row.values[field];
+              const suggestion = row.suggestions[field];
+              return (
+                <tr key={field}>
+                  <th>{field}</th>
+                  <td>
+                    {value ? (
+                      <span>{value}</span>
+                    ) : suggestion ? (
+                      <span className="muted">
+                        suggested: {suggestion.value}
+                        {suggestion.confidence != null
+                          ? ` (${suggestion.confidence.toFixed(2)})`
+                          : ''}
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                    {row.quotes[field] ? (
+                      <blockquote>{row.quotes[field]}</blockquote>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {!editing && error ? (
+        <p className="error" role="alert">{error}</p>
+      ) : null}
     </article>
   );
 }
@@ -718,11 +844,19 @@ function DraftsTab({ runId }: { runId: string }) {
                 <div className="draft-meta">
                   <span>{detail.id}</span>
                   {detail.parentId ? <span>parent: {detail.parentId}</span> : null}
-                  {detail.parentId ? (
-                    <button className="ghost" onClick={() => void toggleCompare()}>
-                      {compare ? 'Hide parent' : 'Compare with parent'}
+                  <div className="buttons">
+                    <button className="ghost" onClick={() => void copyDraft(detail)}>
+                      Copy Markdown
                     </button>
-                  ) : null}
+                    <button className="ghost" onClick={() => downloadDraft(detail)}>
+                      Download .md
+                    </button>
+                    {detail.parentId ? (
+                      <button className="ghost" onClick={() => void toggleCompare()}>
+                        {compare ? 'Hide parent' : 'Compare with parent'}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 {compare && parent ? (
                   <div className="compare">
@@ -864,4 +998,23 @@ function isLocalBaseUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function copyDraft(detail: DraftDetail): Promise<void> {
+  if (!navigator.clipboard) {
+    throw new Error('Clipboard is not available in this browser');
+  }
+  await navigator.clipboard.writeText(detail.markdown);
+}
+
+function downloadDraft(detail: DraftDetail): void {
+  const blob = new Blob([detail.markdown], {
+    type: 'text/markdown;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${detail.id}.md`;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
