@@ -119,6 +119,44 @@
 
   .note { color: var(--muted); font-size: .9rem; margin-top: 14px; }
 
+  .download { background: var(--bg-soft); }
+  .recommended {
+    margin-top: 30px; display: flex; align-items: center; gap: 22px;
+    justify-content: space-between; flex-wrap: wrap;
+    border: 1px solid var(--line); border-left: 3px solid var(--gold);
+    border-radius: 0 12px 12px 0; background: var(--card); padding: 22px 24px;
+  }
+  .recommended[hidden] { display: none; }
+  .recommended .badge {
+    display: inline-block; color: var(--gold-2); text-transform: uppercase;
+    letter-spacing: .12em; font-size: .72rem; font-weight: 700; margin-bottom: 6px;
+  }
+  .recommended h3 { font-size: 1.15rem; margin-bottom: 4px; }
+  .recommended p { color: var(--muted); font-size: .92rem; }
+  .download-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px; margin-top: 22px;
+  }
+  .download-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 22px 20px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .download-card h3 { font-size: 1rem; }
+  .download-card p { color: var(--muted); font-size: .9rem; }
+  .download-card .meta { color: var(--muted); font-size: .8rem; margin-top: auto; }
+  .download-card a.dl { display: inline-block; margin-top: 10px; font-weight: 600; color: var(--gold-2); }
+  .download-card a.dl:hover { color: var(--gold); }
+  .download-card a.alt { display: block; font-size: .83rem; color: var(--muted); }
+  .cli-card {
+    margin-top: 22px; border: 1px solid var(--line); border-radius: 14px;
+    background: #080c0a; padding: 20px 22px;
+  }
+  .cli-card h3 { font-size: 1rem; margin-bottom: 8px; }
+  .cli-card pre { margin: 0; padding: 0; border: 0; background: transparent; }
+  .cli-card p { color: var(--muted); font-size: .9rem; margin-top: 8px; }
+  .download-note { color: var(--muted); font-size: .86rem; margin-top: 18px; }
+  .download-note strong { color: var(--text); }
+
   .table-scroll { overflow-x: auto; margin-top: 30px; }
   table { width: 100%; border-collapse: collapse; font-size: .94rem; }
   th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -145,6 +183,7 @@
     .split { grid-template-columns: 1fr; gap: 24px; }
     .hero { padding: 76px 0 60px; }
     section { padding: 58px 0; }
+    .recommended { align-items: flex-start; }
   }
 </style>
 </head>
@@ -158,6 +197,7 @@
         Winnow
       </a>
       <div class="links">
+        <a href="#download">Download</a>
         <a href="#why">Why Winnow</a>
         <a href="#works">What works</a>
         <a href="#roadmap">Roadmap</a>
@@ -180,11 +220,11 @@
         writes; it never invents a reference.
       </p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/michael-borck/winnow#quick-start">Install the CLI</a>
+        <a class="btn btn-primary" id="hero-download" href="#download">Download Winnow</a>
+        <a class="btn btn-ghost" href="#cli">Install the CLI</a>
         <a class="btn btn-ghost" href="https://github.com/michael-borck/winnow">View on GitHub</a>
-        <a class="btn btn-ghost" href="https://github.com/michael-borck/winnow/blob/main/SPEC.md">Read the spec</a>
       </div>
-      <p class="cta-note">v0.1 scaffold · MIT licensed · Node 24+ · no accounts, no telemetry</p>
+      <p class="cta-note">v1.1.0 · desktop app for macOS, Windows and Linux · MIT licensed · no accounts, no telemetry</p>
     </div>
   </div>
 
@@ -205,13 +245,89 @@
       <span>Review queue</span>
       <span>Local web UI</span>
       <span>Full payload replay</span>
-      <span>Local web UI</span>
-      <span>Desktop shell</span>
+      <span>Evidence editing</span>
+      <span>Desktop installers</span>
       <span>Grounded drafts</span>
       <span>BibTeX + CSL-JSON</span>
       <span>Unit + integration tests</span>
     </div>
   </div>
+
+  <section id="download" class="download">
+    <div class="wrap">
+      <div class="kicker">Download</div>
+      <h2>Install Winnow on your machine.</h2>
+      <p class="sub">
+        Desktop installers for macOS, Windows and Linux, plus the CLI for
+        scripted or headless work. Everything stays in a local SQLite database;
+        there is no account and no telemetry.
+      </p>
+
+      <div class="recommended" id="download-recommended" hidden>
+        <div>
+          <span class="badge">Recommended for your system</span>
+          <h3 id="download-recommended-name">Winnow</h3>
+          <p id="download-recommended-note">Choose the build that matches your platform.</p>
+        </div>
+        <a class="btn btn-primary" id="download-recommended-link" href="#download" download>Download</a>
+      </div>
+
+      <div class="download-grid">
+        <div class="download-card">
+          <h3>macOS — Apple silicon</h3>
+          <p>For M1, M2, M3 and newer Macs.</p>
+          <span class="meta">DMG · signed and notarized</span>
+          <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-arm64.dmg" download>Download arm64 DMG</a>
+          <a class="alt" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-arm64-mac.zip" download>or ZIP</a>
+        </div>
+        <div class="download-card">
+          <h3>macOS — Intel</h3>
+          <p>For Intel-based Macs.</p>
+          <span class="meta">DMG · signed and notarized</span>
+          <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0.dmg" download>Download Intel DMG</a>
+          <a class="alt" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-mac.zip" download>or ZIP</a>
+        </div>
+        <div class="download-card">
+          <h3>Windows — 64-bit</h3>
+          <p>Windows 10 and 11.</p>
+          <span class="meta">NSIS installer · unsigned</span>
+          <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-Setup-1.1.0.exe" download>Download installer</a>
+        </div>
+        <div class="download-card">
+          <h3>Linux — AppImage</h3>
+          <p>Portable build for most 64-bit distributions.</p>
+          <span class="meta">AppImage · no install step</span>
+          <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-x86_64.AppImage" download>Download AppImage</a>
+        </div>
+        <div class="download-card">
+          <h3>Linux — Debian/Ubuntu</h3>
+          <p>For Debian-based 64-bit distributions.</p>
+          <span class="meta">.deb package</span>
+          <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-amd64.deb" download>Download .deb</a>
+        </div>
+        <div class="download-card">
+          <h3>Command line</h3>
+          <p>For scripts, servers and headless work. Requires Node 24+.</p>
+          <span class="meta">npm package</span>
+          <a class="dl" href="#cli">Install with npm</a>
+          <a class="alt" href="https://www.npmjs.com/package/@michaelborck/winnow-cli">View on npm</a>
+        </div>
+      </div>
+
+      <div class="cli-card" id="cli">
+        <h3>Install the CLI</h3>
+        <pre><code>npm install -g @michaelborck/winnow-cli
+winnow --help</code></pre>
+        <p>Version 1.1.0 · <a href="https://github.com/michael-borck/winnow/blob/main/CHANGELOG.md">release notes</a> · MIT licensed</p>
+      </div>
+
+      <p class="download-note">
+        <strong>macOS:</strong> signed and notarized.
+        <strong>Windows:</strong> the installer is not code-signed yet, so SmartScreen may warn.
+        <strong>Linux:</strong> use the AppImage for a portable build, or the .deb for Debian-based systems.
+      </p>
+    </div>
+  </section>
 
   <section id="why">
     <div class="wrap">
@@ -259,11 +375,11 @@
   <section id="works">
     <div class="wrap">
       <div class="kicker">What works now</div>
-      <h2>A real CLI, verified against real indexes.</h2>
+      <h2>A real CLI and desktop app, verified against real indexes.</h2>
       <div class="split">
         <div>
           <p class="sub">
-            The v0.2 work retrieves, deduplicates, verifies and ranks. Briefs
+            The v1.1 build retrieves, deduplicates, verifies and ranks. Briefs
             add a question, thesis, machine filters and exclusion flags.
             Screening is a human decision: the tool suggests, stores its
             suggestion separately, and never overwrites your call. Extraction
@@ -282,9 +398,11 @@
             intact. Citations and references render through citeproc in APA,
             Vancouver or Harvard, or from a custom CSL file. Counter-evidence
             can come from critical queries or citation chasing through Semantic
-            Scholar. The same data is available in a local web UI, including a
-            local web UI with template or model drafting, support triage, named
-            or custom CSL styles, and a side-by-side draft comparison. Every
+            Scholar. The same data is available in a local web UI with a sidebar
+            workspace, template or model drafting, support triage, named or
+            custom CSL styles, evidence editing, draft copy and download, and a
+            side-by-side draft comparison. The desktop app packages the server
+            and web UI with installers for macOS, Windows and Linux. Every
             retrieval payload is stored, so replay re-normalises and re-ranks the
             original provider responses and checks the result hash. Everything
             lives in one SQLite database, with raw provider payloads kept for
@@ -297,9 +415,8 @@
           </p>
         </div>
         <div>
-          <pre><code><span class="comment"># install and link the CLI</span>
-npm install &amp;&amp; npm run build
-npm link ./packages/cli
+          <pre><code><span class="comment"># install the published CLI (Node 24+)</span>
+npm install -g @michaelborck/winnow-cli
 
 <span class="comment"># create a project and search</span>
 winnow init phd-review
@@ -329,8 +446,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 --thesis "Retrieval improves acc
 winnow queue .
 winnow queue . --restore &lt;sentence-id&gt; --rationale "Relevant, but weaker than claimed"
 
-<span class="comment"># or open the desktop shell</span>
-npm run desktop
+<span class="comment"># check your setup</span>
+winnow doctor
 
 <span class="comment"># stance, argument map, counter-evidence pass</span>
 winnow stance . --thesis "Retrieval improves accuracy." --suggest
@@ -359,28 +476,43 @@ winnow replay &lt;run-id&gt;</code></pre>
           <tbody>
             <tr>
               <td>v0.1</td>
-              <td>CLI: init, search, verify, replay; orthogonal verification, citability, RRF ranking, BibTeX/CSL export</td>
-              <td class="done">Scaffolded</td>
+              <td>CLI foundation: init, search, verify, replay; orthogonal verification, citability, RRF ranking, BibTeX/CSL export</td>
+              <td class="done">Done</td>
             </tr>
             <tr>
               <td>v0.2</td>
               <td>Screening and extraction: human decisions, tool suggestions, evidence table, stage gates, PRISMA-inspired counts</td>
-              <td class="next">In progress</td>
+              <td class="done">Done</td>
             </tr>
             <tr>
               <td>v0.3</td>
               <td>Review and Argue: evidence bundle, sentence checks, support triage, counter-evidence, citation rendering</td>
-              <td class="next">In progress</td>
+              <td class="done">Done</td>
             </tr>
             <tr>
               <td>v0.4</td>
               <td>Local web UI: browse, triage, read drafts, review queue</td>
-              <td class="done">Available</td>
+              <td class="done">Done</td>
             </tr>
             <tr>
               <td>v0.5</td>
               <td>Desktop shell, installers, first-run local model setup</td>
-              <td class="next">In progress</td>
+              <td class="done">Done</td>
+            </tr>
+            <tr>
+              <td>v1.0</td>
+              <td>Release engineering: packaging, signing, notarization, npm publishing and CI</td>
+              <td class="done">Released</td>
+            </tr>
+            <tr>
+              <td>v1.1</td>
+              <td>Sidebar workspace, About tab, evidence editing, draft copy and download</td>
+              <td class="done">Released</td>
+            </tr>
+            <tr>
+              <td>Next</td>
+              <td>Weigh stage: study design and quality flags; broader benchmark coverage</td>
+              <td class="next">Planned</td>
             </tr>
           </tbody>
         </table>
@@ -418,6 +550,87 @@ winnow replay &lt;run-id&gt;</code></pre>
     </div>
   </div>
 </footer>
+
+<script>
+(() => {
+  const VERSION = '1.1.0';
+  const BASE = 'https://github.com/michael-borck/winnow/releases/download/v' + VERSION + '/';
+  const assets = {
+    'mac-arm64': {
+      label: 'macOS (Apple silicon)',
+      file: 'Winnow-' + VERSION + '-arm64.dmg',
+      cta: 'Download arm64 DMG',
+      note: 'For M1, M2, M3 and newer Macs. On an Intel Mac, choose the Intel build below.'
+    },
+    'mac-x64': {
+      label: 'macOS (Intel)',
+      file: 'Winnow-' + VERSION + '.dmg',
+      cta: 'Download Intel DMG',
+      note: 'For Intel-based Macs.'
+    },
+    'win-x64': {
+      label: 'Windows (64-bit)',
+      file: 'Winnow-Setup-' + VERSION + '.exe',
+      cta: 'Download installer',
+      note: 'For Windows 10 and 11. The installer is not code-signed yet.'
+    },
+    'linux-x64': {
+      label: 'Linux (AppImage, 64-bit)',
+      file: 'Winnow-' + VERSION + '-x86_64.AppImage',
+      cta: 'Download AppImage',
+      note: 'Portable AppImage for most 64-bit distributions.'
+    }
+  };
+
+  const wire = (key) => {
+    const asset = assets[key];
+    if (!asset) return;
+    const url = BASE + asset.file;
+    const card = document.getElementById('download-recommended');
+    const name = document.getElementById('download-recommended-name');
+    const note = document.getElementById('download-recommended-note');
+    const link = document.getElementById('download-recommended-link');
+    const hero = document.getElementById('hero-download');
+    if (card && name && note && link) {
+      name.textContent = asset.label;
+      note.textContent = asset.note;
+      link.href = url;
+      link.setAttribute('download', '');
+      link.textContent = asset.cta;
+      card.hidden = false;
+    }
+    if (hero) {
+      hero.href = url;
+      hero.setAttribute('download', '');
+      hero.textContent = 'Download for ' + asset.label;
+    }
+  };
+
+  const detect = async () => {
+    const ua = navigator.userAgent || '';
+    const platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase();
+    const isMac = platform.includes('mac') || /mac os x/i.test(ua);
+    const isWindows = platform.includes('win') || /windows/i.test(ua);
+    const isLinux = platform.includes('linux') || /linux/i.test(ua);
+    if (isMac && navigator.maxTouchPoints > 1) return null;
+    if (isMac) {
+      let arch = '';
+      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+        try {
+          const values = await navigator.userAgentData.getHighEntropyValues(['architecture']);
+          arch = (values.architecture || '').toLowerCase();
+        } catch (error) {}
+      }
+      return arch === 'x86' ? 'mac-x64' : 'mac-arm64';
+    }
+    if (isWindows) return 'win-x64';
+    if (isLinux) return 'linux-x64';
+    return null;
+  };
+
+  detect().then(wire).catch(() => {});
+})();
+</script>
 
 </body>
 </html>
