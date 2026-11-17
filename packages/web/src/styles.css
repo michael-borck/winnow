@@ -300,9 +300,39 @@ input {
   border-bottom-color: var(--gold);
 }
 
-.panel {
-  padding-bottom: 40px;
-}
+  .panel {
+    padding-bottom: 40px;
+  }
+
+  .about {
+    max-width: 78ch;
+    padding-top: 20px;
+  }
+
+  .about h2 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    color: var(--gold-2);
+  }
+
+  .about h3 {
+    margin-top: 22px;
+    font-size: 1.02rem;
+    color: var(--gold-2);
+  }
+
+  .about p,
+  .about li {
+    color: var(--muted);
+  }
+
+  .about ul {
+    padding-left: 20px;
+  }
+
+  .about a {
+    color: var(--sage-2);
+  }
 
 .card {
   background: var(--card);

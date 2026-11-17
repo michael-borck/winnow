@@ -15,7 +15,7 @@ import {
   type StateResponse,
 } from './api';
 
-type Tab = 'sources' | 'evidence' | 'drafts' | 'queue';
+type Tab = 'sources' | 'evidence' | 'drafts' | 'queue' | 'about';
 
 export default function App() {
   const [state, setState] = useState<StateResponse | null>(null);
@@ -96,7 +96,7 @@ export default function App() {
         </div>
 
         <nav className="nav" aria-label="Sections">
-          {(['sources', 'evidence', 'drafts', 'queue'] as const).map((item) => (
+          {(['sources', 'evidence', 'drafts', 'queue', 'about'] as const).map((item) => (
             <button
               key={item}
               className={tab === item ? 'nav-item active' : 'nav-item'}
@@ -132,7 +132,7 @@ export default function App() {
           </div>
         </header>
 
-        {state.run ? (
+        {state.run && tab !== 'about' ? (
           <section className="summary">
             <div className="chips">
               <Chip label="Included" value={state.counts?.screening.included ?? 0} />
@@ -143,12 +143,14 @@ export default function App() {
             </div>
             <p className="query">{state.run.query}</p>
           </section>
-        ) : (
+        ) : null}
+
+        {!state.run && tab !== 'about' ? (
           <section className="empty">
             <h2>No completed run yet</h2>
             <p>Run `winnow search "topic"` in this project, then reload.</p>
           </section>
-        )}
+        ) : null}
 
         {error ? (
           <p className="error banner" role="alert">
@@ -156,9 +158,11 @@ export default function App() {
           </p>
         ) : null}
 
-        {state.run ? (
+        {state.run || tab === 'about' ? (
           <main className="panel">
-            {tab === 'sources' ? (
+            {tab === 'about' ? (
+              <AboutTab />
+            ) : tab === 'sources' ? (
               <SourcesTab runId={runId} onChanged={() => refresh()} />
             ) : tab === 'evidence' ? (
               <EvidenceTab runId={runId} />
@@ -170,6 +174,73 @@ export default function App() {
           </main>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function AboutTab() {
+  return (
+    <div className="about">
+      <h2>About Winnow</h2>
+      <p>
+        Winnow is a local-first literature search and review tool. It finds
+        sources, verifies them, and helps you build a grounded review draft
+        without sending your library to a cloud service.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        Winnow follows a review pipeline: brief, search, verify, screen,
+        extract, stance, review, argue, counter, queue. Each stage keeps machine
+        suggestions separate from human decisions.
+      </p>
+
+      <h3>Privacy</h3>
+      <ul>
+        <li>Your library, notes, drafts, and payloads live in a local SQLite file.</li>
+        <li>Network access is limited to scholarly APIs and the model endpoint you configure.</li>
+        <li>A local model is the default. A cloud model is optional and never part of the correctness path.</li>
+        <li>API keys come from the environment and are never written to the database, logs, or exports.</li>
+        <li>There is no telemetry, analytics, or cloud sync.</li>
+      </ul>
+
+      <h3>Limits</h3>
+      <p>
+        Winnow targets structured narrative and scoping reviews. It is not a
+        systematic-review engine. The result set is relevance-ranked, not
+        exhaustive, and the flow counts are labelled "PRISMA-inspired", never
+        PRISMA-compliant.
+      </p>
+      <p>
+        The Weigh stage is specified but deferred. Winnow does not generate
+        references. It exports only records that pass the citability rule.
+      </p>
+
+      <h3>Documentation</h3>
+      <ul>
+        <li>
+          <a href="https://github.com/michael-borck/winnow/blob/main/SPEC.md" target="_blank" rel="noreferrer">
+            Specification
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/michael-borck/winnow/blob/main/docs/method.md" target="_blank" rel="noreferrer">
+            Method
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/michael-borck/winnow/tree/main/docs/adr" target="_blank" rel="noreferrer">
+            Architecture decisions
+          </a>
+        </li>
+        <li>
+          <a href="https://winnow.borck.education" target="_blank" rel="noreferrer">
+            Website
+          </a>
+        </li>
+      </ul>
+
+      <p className="small muted">Winnow v1.0.0 · MIT licensed</p>
     </div>
   );
 }
@@ -772,7 +843,9 @@ function label(tab: Tab): string {
       ? 'Evidence'
       : tab === 'drafts'
         ? 'Drafts'
-        : 'Queue';
+        : tab === 'queue'
+          ? 'Queue'
+          : 'About';
 }
 
 function errorText(error: unknown): string {
