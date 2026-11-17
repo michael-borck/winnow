@@ -527,6 +527,7 @@ function EvidenceCard({
               <span>{field}</span>
               <input
                 value={values[field] ?? ''}
+                aria-label={`${field} value`}
                 onChange={(event) =>
                   setValues((current) => ({
                     ...current,
@@ -538,6 +539,7 @@ function EvidenceCard({
                 <input
                   className="quote"
                   value={quotes[field] ?? ''}
+                  aria-label={`${field} quote`}
                   onChange={(event) =>
                     setQuotes((current) => ({
                       ...current,

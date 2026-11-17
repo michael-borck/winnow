@@ -33,7 +33,11 @@
     "desktop": "npm run build && npm run start -w @michaelborck/winnow-desktop"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.12",
     "@types/node": "^26.6.6",
+    "jsdom": "^31.0.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
