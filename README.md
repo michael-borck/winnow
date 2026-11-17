@@ -11,7 +11,7 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v1.0.0. The CLI implements `init`, `brief`, `search`, `screen`,
+**Status:** v1.1.0. The CLI implements `init`, `brief`, `search`, `screen`,
 `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`,
 `replay`, `rerun` and `doctor`; template or local-model writers, support triage,
 citeproc styles, citation chasing, custom CSL files, full payload replay, a
@@ -405,10 +405,11 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow project export` / `project delete --purge` / `cache purge` — portable
   project archives, explicit project deletion, and payload cache purging that
   keeps the database.
-- **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
-  with a session token for writes. The Drafts tab can generate a template or
-  model review, run support triage, use a named or custom CSL, and compare a
-  revision with its parent.
+- **Local web UI** — sidebar navigation for sources, evidence, drafts, queue and
+  About at `127.0.0.1:4317`, with a session token for writes. Evidence values
+  can be edited, and drafts can be copied or downloaded. The Drafts tab can
+  generate a template or model review, run support triage, use a named or custom
+  CSL, and compare a revision with its parent.
 - **Desktop shell** — Electron window around the local UI; starts the server on
   a free port and stops it on quit.
 - Unit and integration tests across briefs, screening, extraction, stance,
@@ -445,10 +446,10 @@ between, and refuses to skip it:
 
 | Interface | Status | Use |
 |---|---|---|
-| CLI | v1.0 | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun, doctor |
-| Local web UI | v1.0 | Browse, triage, read drafts, restore holds |
-| Desktop app | v1.0 | Electron shell and installers for macOS, Windows and Linux |
-| Library | v1.0 | `@michaelborck/winnow-core` for other tools |
+| CLI | v1.1 | Search, screen, extract, export, stance, review, argue, counter, queue, verify, replay, rerun, doctor |
+| Local web UI | v1.1 | Sidebar workspace, evidence editing, drafts, queue, About |
+| Desktop app | v1.1 | Electron shell and installers for macOS, Windows and Linux |
+| Library | v1.1 | `@michaelborck/winnow-core` for other tools |
 
 ## Documentation
 

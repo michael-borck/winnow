@@ -26,7 +26,7 @@ The current implementation searches OpenAlex and Crossref, with Semantic Scholar
 
 Records are deduplicated by DOI, then by normalised title, first author and year. A preprint and its published version are linked as variants rather than merged. The published version is marked as the version of record, both identifiers are kept, and the alternate DOI is noted in BibTeX and CSL exports.
 
-Provider lists are fused with reciprocal rank fusion (RRF, k = 60) rather than by comparing provider scores that do not mean the same thing (ADR 0010; Cormack et al., 2009). Deterministic tie-breakers follow. The specification uses completeness, recency, citation percentile where the provider supplies it, and open-access availability. v1.0 uses completeness, recency, raw citation count, and title. Citation count is a tie-breaker, not a quality score or the main relevance signal. Winnow computes no composite quality score.
+Provider lists are fused with reciprocal rank fusion (RRF, k = 60) rather than by comparing provider scores that do not mean the same thing (ADR 0010; Cormack et al., 2009). Deterministic tie-breakers follow. The specification uses completeness, recency, citation percentile where the provider supplies it, and open-access availability. v1.1 uses completeness, recency, raw citation count, and title. Citation count is a tie-breaker, not a quality score or the main relevance signal. Winnow computes no composite quality score.
 
 This is where the method refuses a common shortcut. The number of papers that report a finding is not a measure of the finding's strength. Five small surveys do not outweigh one well-run trial. Winnow ranks retrieval, then leaves the judgement about evidence strength to Weigh and to the reviewer.
 
@@ -100,7 +100,7 @@ This is reproducibility as an audit trail. It is not a promise that a live searc
 
 ## Implementation status
 
-The v1.0 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell with installers. A few guarantees are specified but not yet enforced:
+The v1.1 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell with installers. A few guarantees are specified but not yet enforced:
 
 - Quote checking verifies the quote at its declared span in the normalised source text. Source-text hash pinning is specified, not yet stored.
 - Model artifact verification reads Ollama digests and quantization. Other OpenAI-compatible endpoints are checked for availability but usually cannot supply a weight digest.

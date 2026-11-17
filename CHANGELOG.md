@@ -5,6 +5,24 @@ Changelog, and the project uses semantic versioning.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-17
+
+### Added
+
+- Sidebar shell for the local web UI with project, run and section navigation
+- About tab with method, privacy, limits and documentation links
+- Evidence editing in the web UI, backed by a validated `POST /api/evidence`
+  endpoint
+- Copy Markdown and Download `.md` actions for drafts
+- Component tests for the sidebar, About tab and evidence editing
+- Accessible labels for evidence form fields
+
+### Changed
+
+- Improved keyboard accessibility: skip link, focus-visible styles, alert and
+  status roles, focusable draft previews, and semantic landmarks
+- Responsive sidebar that collapses to a horizontal nav on small screens
+
 ## [1.0.0] - 2026-11-17
 
 ### Added
