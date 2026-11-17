@@ -295,13 +295,13 @@
         </div>
         <div class="download-card">
           <h3>Linux — AppImage</h3>
-          <p>Portable build for most 64-bit distributions.</p>
+          <p>Portable build for most x86_64 distributions.</p>
           <span class="meta">AppImage · no install step</span>
           <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-x86_64.AppImage" download>Download AppImage</a>
         </div>
         <div class="download-card">
           <h3>Linux — Debian/Ubuntu</h3>
-          <p>For Debian-based 64-bit distributions.</p>
+          <p>For Debian-based x86_64 distributions.</p>
           <span class="meta">.deb package</span>
           <a class="dl" href="https://github.com/michael-borck/winnow/releases/download/v1.1.0/Winnow-1.1.0-amd64.deb" download>Download .deb</a>
         </div>
@@ -324,7 +324,7 @@ winnow --help</code></pre>
       <p class="download-note">
         <strong>macOS:</strong> signed and notarized.
         <strong>Windows:</strong> the installer is not code-signed yet, so SmartScreen may warn.
-        <strong>Linux:</strong> use the AppImage for a portable build, or the .deb for Debian-based systems.
+        <strong>Linux:</strong> desktop builds are x86_64; on ARM, use the CLI.
       </p>
     </div>
   </section>
@@ -606,25 +606,34 @@ winnow replay &lt;run-id&gt;</code></pre>
     }
   };
 
+  const highEntropyArch = async () => {
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      try {
+        const values = await navigator.userAgentData.getHighEntropyValues(['architecture']);
+        return (values.architecture || '').toLowerCase();
+      } catch (error) {}
+    }
+    return '';
+  };
+
   const detect = async () => {
     const ua = navigator.userAgent || '';
     const platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase();
     const isMac = platform.includes('mac') || /mac os x/i.test(ua);
     const isWindows = platform.includes('win') || /windows/i.test(ua);
     const isLinux = platform.includes('linux') || /linux/i.test(ua);
+    const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+    const isChromeOS = /cros/i.test(ua);
+    if (isMobile || isChromeOS) return null;
     if (isMac && navigator.maxTouchPoints > 1) return null;
     if (isMac) {
-      let arch = '';
-      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-        try {
-          const values = await navigator.userAgentData.getHighEntropyValues(['architecture']);
-          arch = (values.architecture || '').toLowerCase();
-        } catch (error) {}
-      }
-      return arch === 'x86' ? 'mac-x64' : 'mac-arm64';
+      return (await highEntropyArch()) === 'x86' ? 'mac-x64' : 'mac-arm64';
     }
     if (isWindows) return 'win-x64';
-    if (isLinux) return 'linux-x64';
+    if (isLinux) {
+      const arch = (await highEntropyArch()) || (/aarch64|arm64|armv8/i.test(ua) ? 'arm' : '');
+      return arch === 'arm' ? null : 'linux-x64';
+    }
     return null;
   };
 
