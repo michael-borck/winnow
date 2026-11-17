@@ -994,7 +994,12 @@ service, not a second implementation of the pipeline.
   bandwidth. The run report records the request count per host.
 - Progress streams to the terminal; runs are cancellable and resumable from a
   checkpoint.
-- Per-provider backoff on 429/5xx; all HTTP responses capped by size and time.
+- Per-provider pacing at about one request per second, with backoff on 429/5xx,
+  Retry-After support, and response size caps.
+- Polite-pool email via `--mailto` or `WINNOW_MAILTO`; OpenAlex and Semantic
+  Scholar keys via `--openalex-key`/`OPENALEX_API_KEY` and
+  `--s2-key`/`SEMANTIC_SCHOLAR_API_KEY`. Keys are never stored in the database,
+  logs or exports.
 - Provider payloads are stored compressed for replay, within the caps in §10.
 - A run is reproducible in two senses: **replay** re-normalises the stored
   provider payloads (OpenAlex, Crossref, Semantic Scholar), re-dedupes and

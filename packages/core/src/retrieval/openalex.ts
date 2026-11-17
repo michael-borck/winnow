@@ -32,7 +32,13 @@ export interface ProviderResult {
 
 export async function retrieveOpenAlex(
   topic: string,
-  options: { limit: number; since?: number; until?: number; mailto?: string },
+  options: {
+    limit: number;
+    since?: number;
+    until?: number;
+    mailto?: string;
+    openAlexApiKey?: string;
+  },
 ): Promise<ProviderResult> {
   const url = new URL('https://api.openalex.org/works');
   url.searchParams.set('search', topic);
@@ -46,6 +52,7 @@ export async function retrieveOpenAlex(
 
   const { body, text, url: finalUrl } = await fetchJson(url.toString(), 'openalex', {
     mailto: options.mailto,
+    apiKey: options.openAlexApiKey,
   });
   const payload: RetrievalPayload = {
     id: `payload-${randomUUID()}`,

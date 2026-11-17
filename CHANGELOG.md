@@ -24,6 +24,8 @@ Changelog, and the project uses semantic versioning.
 - Fuzzy dedupe by title, author and year, plus variant linking for preprint and
   published versions
 - Retry with backoff, response size caps and payload caps
+- Per-provider pacing, polite-pool email, OpenAlex and Semantic Scholar API
+  keys, and Retry-After support
 - Server Host/Origin validation, token-protected reads, security headers and
   CSL input validation
 - Span-exact quote checks, stance-aware synthesis, framing rules and citation

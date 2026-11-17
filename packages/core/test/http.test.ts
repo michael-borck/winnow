@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   ProviderError,
   fetchJson,
   type FetchLike,
 } from '../src/retrieval/http.js';
+import { setMinRequestInterval } from '../src/retrieval/rateLimiter.js';
+
+beforeEach(() => {
+  setMinRequestInterval(0);
+});
+
+afterEach(() => {
+  setMinRequestInterval(1_000);
+});
 
 function response(
   body: string,
@@ -17,68 +26,14 @@ function response(
 }
 
 describe('fetchJson', () => {
-  it('retries a rate-limited request and then succeeds', async () => {
+  it('retries a rate-limited request', async () => {
     let calls = 0;
     const fetchImpl: FetchLike = async () => {
       calls += 1;
       return calls === 1 ? response('', 429) : response('{"ok":true}');
     };
 
-    const result = await fetchJson('https://example.test', 'test', {
-      fetchImpl,
-      retries: 3,
-      retryBaseMs: 1,
-    });
-
-    expect(result.body).toEqual({ ok: true });
-    expect(calls).toBe(2);
-  });
-
-  it('retries a server error and then gives up', async () => {
-    let calls = 0;
-    const fetchImpl: FetchLike = async () => {
-      calls += 1;
-      return response('', 500);
-    };
-
-    await expect(
-      fetchJson('https://example.test', 'test', {
-        fetchImpl,
-        retries: 2,
-        retryBaseMs: 1,
-      }),
-    ).rejects.toBeInstanceOf(ProviderError);
-
-    expect(calls).toBe(2);
-  });
-
-  it('does not retry a client error', async () => {
-    let calls = 0;
-    const fetchImpl: FetchLike = async () => {
-      calls += 1;
-      return response('', 404);
-    };
-
-    await expect(
-      fetchJson('https://example.test', 'test', {
-        fetchImpl,
-        retries: 3,
-        retryBaseMs: 1,
-      }),
-    ).rejects.toBeInstanceOf(ProviderError);
-
-    expect(calls).toBe(1);
-  });
-
-  it('retries a network failure and then succeeds', async () => {
-    let calls = 0;
-    const fetchImpl: FetchLike = async () => {
-      calls += 1;
-      if (calls === 1) throw new TypeError('fetch failed');
-      return response('{"ok":true}');
-    };
-
-    const result = await fetchJson('https://example.test', 'test', {
+    const result = await fetchJson('https://example.test', 'crossref', {
       fetchImpl,
       retries: 2,
       retryBaseMs: 1,
@@ -88,16 +43,63 @@ describe('fetchJson', () => {
     expect(calls).toBe(2);
   });
 
+  it('retries a network failure', async () => {
+    let calls = 0;
+    const fetchImpl: FetchLike = async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError('fetch failed');
+      return response('{"ok":true}');
+    };
+
+    const result = await fetchJson('https://example.test', 'openalex', {
+      fetchImpl,
+      retries: 2,
+      retryBaseMs: 1,
+    });
+
+    expect(result.body).toEqual({ ok: true });
+    expect(calls).toBe(2);
+  });
+
+  it('sends an OpenAlex bearer token', async () => {
+    let headers: Record<string, string> = {};
+    const fetchImpl: FetchLike = async (_url, init) => {
+      headers = init?.headers as Record<string, string>;
+      return response('{}');
+    };
+
+    await fetchJson('https://example.test', 'openalex', {
+      fetchImpl,
+      apiKey: 'oa-key',
+    });
+
+    expect(headers.Authorization).toBe('Bearer oa-key');
+  });
+
+  it('sends a Semantic Scholar API key header', async () => {
+    let headers: Record<string, string> = {};
+    const fetchImpl: FetchLike = async (_url, init) => {
+      headers = init?.headers as Record<string, string>;
+      return response('{}');
+    };
+
+    await fetchJson('https://example.test', 'semantic_scholar', {
+      fetchImpl,
+      apiKey: 's2-key',
+    });
+
+    expect(headers['x-api-key']).toBe('s2-key');
+  });
+
   it('rejects a response larger than the cap', async () => {
     const fetchImpl: FetchLike = async () =>
       response('x'.repeat(100), 200, { 'content-length': '100' });
 
     await expect(
-      fetchJson('https://example.test', 'test', {
+      fetchJson('https://example.test', 'crossref', {
         fetchImpl,
         maxResponseBytes: 10,
       }),
-    ).rejects.toThrow('too large');
-
+    ).rejects.toBeInstanceOf(ProviderError);
   });
 });

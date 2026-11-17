@@ -184,6 +184,7 @@ export interface SearchOptions {
   openAccessOnly?: boolean;
   providers?: string[];
   mailto?: string;
+  openAlexApiKey?: string;
   checkLinks?: boolean;
 }
 

@@ -306,9 +306,11 @@ function checkKeys(
   const modelKey =
     (env.WINNOW_MODEL_API_KEY ?? env.OPENAI_API_KEY)?.trim() || undefined;
   const semanticScholarKey = env.SEMANTIC_SCHOLAR_API_KEY?.trim() || undefined;
+  const openAlexKey = env.OPENALEX_API_KEY?.trim() || undefined;
   const detail =
     `model: ${modelKey ? 'set' : 'not set'}; ` +
-    `Semantic Scholar: ${semanticScholarKey ? 'set' : 'not set'}`;
+    `Semantic Scholar: ${semanticScholarKey ? 'set' : 'not set'}; ` +
+    `OpenAlex: ${openAlexKey ? 'set' : 'not set'}`;
 
   if (!isLocalBaseUrl(baseUrl) && !modelKey) {
     return {

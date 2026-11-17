@@ -1,4 +1,5 @@
 import type { LookupFailureReason } from '../types.js';
+import { throttle } from './rateLimiter.js';
 
 export class ProviderError extends Error {
   readonly provider: string;
@@ -52,13 +53,20 @@ export async function fetchJson(
     options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await throttle(provider);
+
     let response: Response;
     try {
+      const authHeaders = options.apiKey
+        ? provider === 'openalex'
+          ? { Authorization: `Bearer ${options.apiKey}` }
+          : { 'x-api-key': options.apiKey }
+        : {};
       response = await fetchImpl(url, {
         headers: {
           Accept: 'application/json',
-          'User-Agent': `Winnow/0.1${options.mailto ? ` (mailto:${options.mailto})` : ''}`,
-          ...(options.apiKey ? { 'x-api-key': options.apiKey } : {}),
+          'User-Agent': `Winnow/1.0${options.mailto ? ` (mailto:${options.mailto})` : ''}`,
+          ...authHeaders,
         },
         signal: AbortSignal.timeout(timeoutMs),
       });

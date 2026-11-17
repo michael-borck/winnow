@@ -71,6 +71,24 @@ Formats: `--format table|json|csv|bibtex|csl`. A search without a project runs
 ephemerally; `--no-save` does the same inside a project. `--provider openalex`
 or `--provider crossref` restricts retrieval.
 
+## Search providers
+
+Winnow searches OpenAlex and Crossref by default and uses Semantic Scholar for
+citation chasing. Provider calls are paced at about one request per second per
+provider, retry 429 and 5xx responses with backoff, and honour `Retry-After`.
+
+- `--mailto` or `WINNOW_MAILTO` puts OpenAlex and Crossref requests in the
+  polite pool.
+- `--openalex-key` or `OPENALEX_API_KEY` raises OpenAlex's free allowance.
+- `--s2-key` or `SEMANTIC_SCHOLAR_API_KEY` raises Semantic Scholar's rate
+  limits for citation chasing.
+- Keys come from the CLI or environment and are never stored in the database,
+  logs or exports.
+
+Paid indexes such as Scopus and Web of Science are out of scope: they require
+institutional authentication and licence agreements. Winnow is built around
+open indexes.
+
 ## Briefs
 
 A brief is YAML frontmatter plus optional context. Machine filters are kept
@@ -340,7 +358,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow search` — OpenAlex and Crossref retrieval, deduplication, orthogonal
   verification, citability, RRF ranking, payload storage, JSON/CSV/BibTeX/CSL
   export. `--brief` supplies the topic and filters; `--counter` also saves a
-  separate critical-terms run.
+  separate critical-terms run. `--mailto`, `--openalex-key`, polite-pool email
+  and per-provider pacing keep requests within provider limits.
 - `winnow screen` — append-only human decisions, separate heuristic suggestions,
   three priority tiers, reason codes, brief-exclusion flags and counts, and
   CSV/JSON import-export.

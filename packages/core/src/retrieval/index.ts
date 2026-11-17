@@ -7,6 +7,7 @@ export interface RetrieveOptions {
   since?: number;
   until?: number;
   mailto?: string;
+  openAlexApiKey?: string;
   providers?: string[];
 }
 

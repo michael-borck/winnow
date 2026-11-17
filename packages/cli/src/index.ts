@@ -150,6 +150,7 @@ interface SearchCliOptions {
   abstracts: boolean;
   checkLinks?: boolean;
   mailto?: string;
+  openAlexKey?: string;
 }
 
 interface VerifyCliOptions {
@@ -241,6 +242,8 @@ interface CounterCliOptions {
   format: string;
   out?: string;
   mailto?: string;
+  openAlexKey?: string;
+  s2Key?: string;
 }
 
 interface QueueCliOptions {
@@ -362,6 +365,7 @@ program
   .option('--no-abstracts', 'omit abstracts from table output')
   .option('--check-links', 'probe landing pages (slow; informational only)')
   .option('--mailto <email>', 'polite-pool email for scholarly APIs')
+  .option('--openalex-key <key>', 'OpenAlex API key (or set OPENALEX_API_KEY)')
   .action(async (topicArg: string | undefined, options: SearchCliOptions) => {
     let parsedBrief: ParsedBrief | undefined;
     if (options.brief) {
@@ -404,6 +408,10 @@ program
       options.openAccess === true ||
       parsedBrief?.brief.filters.openAccess === true;
 
+    const mailto = options.mailto?.trim() || process.env.WINNOW_MAILTO;
+    const openAlexKey =
+      options.openAlexKey?.trim() || process.env.OPENALEX_API_KEY;
+
     if (parsedBrief?.brief.counter) {
       process.stderr.write(
         'winnow: counter-evidence is not implemented yet; brief.counter ignored\n',
@@ -433,7 +441,8 @@ program
       types,
       openAccessOnly,
       providers,
-      mailto: options.mailto,
+      mailto,
+      openAlexApiKey: openAlexKey,
       checkLinks: options.checkLinks === true,
     });
 
@@ -465,7 +474,8 @@ program
             openAccessOnly,
             providers: options.provider,
             checkLinks: options.checkLinks === true,
-            mailto: options.mailto ?? null,
+            mailto: mailto ?? null,
+            openAlexKeyConfigured: Boolean(openAlexKey),
             briefId,
             briefPath: parsedBrief?.brief.path ?? null,
           },
@@ -1291,6 +1301,8 @@ program
   .option('--format <format>', 'table, json or csv', 'table')
   .option('--out <file>', 'write output to a file')
   .option('--mailto <email>', 'polite-pool email for scholarly APIs')
+  .option('--openalex-key <key>', 'OpenAlex API key (or set OPENALEX_API_KEY)')
+  .option('--s2-key <key>', 'Semantic Scholar API key (or set SEMANTIC_SCHOLAR_API_KEY)')
   .action(async (projectArg: string | undefined, options: CounterCliOptions) => {
     const format = parseFormat(options.format, ['table', 'json', 'csv']);
     const limit = parseLimit(options.limit);
@@ -1312,11 +1324,17 @@ program
         );
       }
 
+      const mailto = options.mailto?.trim() || process.env.WINNOW_MAILTO;
+      const openAlexKey =
+        options.openAlexKey?.trim() || process.env.OPENALEX_API_KEY;
+      const s2Key =
+        options.s2Key?.trim() || process.env.SEMANTIC_SCHOLAR_API_KEY;
+
       const result = options.of
         ? await runCitationChase(options.of, {
             limit,
-            mailto: options.mailto,
-            apiKey: process.env.SEMANTIC_SCHOLAR_API_KEY,
+            mailto,
+            apiKey: s2Key,
           }).catch((error: unknown) => {
             throw new UsageError(
               error instanceof Error ? error.message : String(error),
@@ -1328,7 +1346,8 @@ program
               .split(',')
               .map((provider) => provider.trim())
               .filter(Boolean),
-            mailto: options.mailto,
+            mailto,
+            openAlexApiKey: openAlexKey,
             checkLinks: false,
           });
 
@@ -1348,7 +1367,9 @@ program
           criticalTerms: options.of ? [] : CRITICAL_TERMS,
           limit,
           providers: options.of ? null : options.provider,
-          mailto: options.mailto ?? null,
+          mailto: mailto ?? null,
+          openAlexKeyConfigured: Boolean(openAlexKey),
+          s2KeyConfigured: Boolean(s2Key),
         },
       });
       const payloadFailures = await savePayloads(
