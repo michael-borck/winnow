@@ -35,9 +35,37 @@ a {
   text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
-}
+  a:hover {
+    text-decoration: underline;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 12px;
+    top: -48px;
+    z-index: 100;
+    background: var(--gold);
+    color: #17120a;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: top 0.15s ease;
+  }
+
+  .skip-link:focus {
+    top: 12px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold-2);
+    outline-offset: 2px;
+  }
+
+  button:focus-visible,
+  .nav-item.active:focus-visible,
+  .skip-link:focus-visible {
+    outline-color: #fff;
+  }
 
   .app {
     display: grid;

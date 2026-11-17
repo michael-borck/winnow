@@ -58,13 +58,25 @@ export default function App() {
   if (!state) {
     return (
       <main className="center">
-        {error ? <p className="error">{error}</p> : <p>Loading Winnow…</p>}
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p role="status" aria-live="polite">
+            Loading Winnow…
+          </p>
+        )}
       </main>
     );
   }
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+
       <aside className="sidebar">
         <div className="brand">
           <span className="mark">W</span>
@@ -96,10 +108,10 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="footer">v1.0.0 · local</div>
+        <footer className="footer">v1.0.0 · local</footer>
       </aside>
 
-      <div className="main">
+      <div className="main" id="main" tabIndex={-1}>
         <header className="top">
           <div className="run-picker">
             <label htmlFor="run">Run</label>
@@ -138,7 +150,11 @@ export default function App() {
           </section>
         )}
 
-        {error ? <p className="error banner">{error}</p> : null}
+        {error ? (
+          <p className="error banner" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         {state.run ? (
           <main className="panel">
@@ -196,7 +212,7 @@ function SourcesTab({
     }
   }
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error" role="alert">{error}</p>;
   if (!data) return <p>Loading sources…</p>;
   if (!data.sources.length) return <p>No selected sources in this run.</p>;
 
@@ -305,7 +321,7 @@ function SourceCard({
           </button>
         </div>
       </div>
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}
     </article>
   );
 }
@@ -328,7 +344,7 @@ function EvidenceTab({ runId }: { runId: string }) {
     };
   }, [runId]);
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error" role="alert">{error}</p>;
   if (!data) return <p>Loading evidence…</p>;
   if (!data.rows.length) return <p>No human-confirmed includes yet.</p>;
 
@@ -520,6 +536,7 @@ function DraftsTab({ runId }: { runId: string }) {
       <div className="draft-toolbar">
         <button
           onClick={() => void generate()}
+          aria-busy={generating}
           disabled={
             generating ||
             (writer === 'model' &&
@@ -589,7 +606,11 @@ function DraftsTab({ runId }: { runId: string }) {
           <input type="file" accept=".csl,.xml" onChange={(event) => void loadCsl(event)} />
         </label>
         {cslName ? <span className="muted">custom: {cslName}</span> : null}
-        {error ? <span className="error">{error}</span> : null}
+        {error ? (
+        <span className="error" role="alert">
+          {error}
+        </span>
+      ) : null}
       </div>
 
       {writer === 'model' ? (
@@ -636,15 +657,15 @@ function DraftsTab({ runId }: { runId: string }) {
                   <div className="compare">
                     <div>
                       <h4>Parent {parent.id}</h4>
-                      <pre>{parent.markdown}</pre>
+                      <pre tabIndex={0} aria-label="Draft preview">{parent.markdown}</pre>
                     </div>
                     <div>
                       <h4>Current {detail.id}</h4>
-                      <pre>{detail.markdown}</pre>
+                      <pre tabIndex={0} aria-label="Draft preview">{detail.markdown}</pre>
                     </div>
                   </div>
                 ) : (
-                  <pre>{detail.markdown}</pre>
+                  <pre tabIndex={0} aria-label="Draft preview">{detail.markdown}</pre>
                 )}
               </>
             ) : (
@@ -701,7 +722,7 @@ function QueueTab({
     }
   }
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error" role="alert">{error}</p>;
   if (!data) return <p>Loading queue…</p>;
 
   return (
