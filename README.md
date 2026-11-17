@@ -374,6 +374,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   source, rank, selection, citability and verification drift. `--diff` lists
   each change, `--format json` prints the full report, and the comparison is
   stored as an audit event.
+- Audit trail — screening, extraction, stance, draft saves, searches, counter
+  runs, project exports, and cache purges are recorded in `audit_events`.
 - `winnow doctor` — checks Node, project database integrity, provider
   reachability, the model endpoint, key presence and the hosts Winnow may
   contact. `--offline` skips network checks and key values are never printed.

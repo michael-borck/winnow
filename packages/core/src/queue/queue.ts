@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import {
   getDraft,
+  recordAuditEvent,
   saveDraft,
   type DraftRow,
 } from '../project/db.js';
@@ -183,6 +184,18 @@ function reviseHeldSentence(
     structured: updatedDraft,
     bundle,
     basis: updatedDraft.basis,
+  });
+
+  recordAuditEvent(db, {
+    runId: row.run_id,
+    actor: 'user',
+    action: action === 'restored' ? 'sentence_restored' : 'sentence_dropped',
+    payload: {
+      draftId: newRow.id,
+      parentDraftId: row.id,
+      sentenceId: sentence.id,
+      reviewer: input.reviewer,
+    },
   });
 
   return { draft: newRow, sentence: updated };

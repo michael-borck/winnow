@@ -70,6 +70,7 @@ import {
   parseScreeningDecisions,
   parseStances,
   readBrief,
+  recordAuditEvent,
   recordExtraction,
   recordExtractionSuggestion,
   recordScreeningDecision,
@@ -482,6 +483,17 @@ program
           componentHealth: {
             failed: result.failures.length > 0 || payloadFailures.length > 0,
             failures: [...result.failures, ...payloadFailures],
+          },
+        });
+        recordAuditEvent(project.db, {
+          runId: result.runId,
+          actor: 'system',
+          action: 'search',
+          payload: {
+            selected: result.selectedCount,
+            citable: result.citableCount,
+            failures: result.failures,
+            payloadFailures: payloadFailures.length,
           },
         });
         savedPath = project.root;
@@ -1275,6 +1287,18 @@ program
           failures: [...result.failures, ...payloadFailures],
         },
       });
+      recordAuditEvent(project.db, {
+        runId: result.runId,
+        actor: 'system',
+        action: 'counter_search',
+        payload: {
+          selected: result.selectedCount,
+          citable: result.citableCount,
+          failures: result.failures,
+          payloadFailures: payloadFailures.length,
+          chaseOf: options.of ?? null,
+        },
+      });
 
       let suggested = 0;
       if (options.thesis) {
@@ -1666,6 +1690,19 @@ projectCommand
     }
 
     await mkdir(path.dirname(outPath), { recursive: true });
+
+    const exportProject = await openProject(root);
+    try {
+      recordAuditEvent(exportProject.db, {
+        runId: null,
+        actor: 'user',
+        action: 'project_export',
+        payload: { archive: outPath },
+      });
+    } finally {
+      exportProject.db.close();
+    }
+
     await createTar(
       {
         gzip: true,
@@ -1739,6 +1776,19 @@ cacheCommand
 
     await rm(payloadsDir, { recursive: true, force: true });
     await mkdir(payloadsDir, { recursive: true });
+
+    const cacheProject = await openProject(root);
+    try {
+      recordAuditEvent(cacheProject.db, {
+        runId: null,
+        actor: 'user',
+        action: 'cache_purge',
+        payload: { count },
+      });
+    } finally {
+      cacheProject.db.close();
+    }
+
     process.stdout.write(
       `Purged ${count} payload file(s) from ${payloadsDir}\n`,
     );
@@ -1893,6 +1943,18 @@ async function runCounterPass(input: {
         componentHealth: {
           failed: result.failures.length > 0 || payloadFailures.length > 0,
           failures: [...result.failures, ...payloadFailures],
+        },
+      });
+      recordAuditEvent(project.db, {
+        runId: result.runId,
+        actor: 'system',
+        action: 'counter_search',
+        payload: {
+          selected: result.selectedCount,
+          citable: result.citableCount,
+          failures: result.failures,
+          payloadFailures: payloadFailures.length,
+          counterOf: input.counterOf,
         },
       });
       saved = true;

@@ -92,7 +92,7 @@ The guarantee is narrow on purpose: every cited source passed verification, and 
 
 ### 9. Record what happened, and make replay possible
 
-A run stores provider payloads, provider failures, ranks, and decisions. `winnow replay` re-normalises the stored payloads, re-deduplicates, re-ranks with the stored verification, and compares a deterministic snapshot hash (ADR 0011, ADR 0024). `winnow rerun --live` re-executes the same query against current providers, compares the source set, ranks, selection, citability and verification, and records the comparison as an audit event. Model artifacts and a gate-policy record are specified.
+A run stores provider payloads, provider failures, ranks, and decisions. The database also records audit events for screening, extraction, stance, draft saves, searches, counter runs, project exports, and cache purges. `winnow replay` re-normalises the stored payloads, re-deduplicates, re-ranks with the stored verification, and compares a deterministic snapshot hash (ADR 0011, ADR 0024). `winnow rerun --live` re-executes the same query against current providers, compares the source set, ranks, selection, citability and verification, and records the comparison as an audit event. Model artifacts and a gate-policy record are specified.
 
 This is reproducibility as an audit trail. It is not a promise that a live search will return the same results tomorrow.
 

@@ -981,6 +981,20 @@ export function recordScreeningDecision(
     row.decided_at,
   );
 
+  recordAuditEvent(db, {
+    runId: row.run_id,
+    actor: 'user',
+    action: 'screening_decision',
+    payload: {
+      screeningId: row.id,
+      sourceId: row.source_id,
+      decision: row.decision,
+      relevance: row.relevance,
+      reasonCode: row.reason_code,
+      reviewer: row.reviewer,
+    },
+  });
+
   return row;
 }
 
@@ -1087,6 +1101,18 @@ export function recordExtractionValue(
     row.reviewer,
     row.confirmed_at,
   );
+
+  recordAuditEvent(db, {
+    runId: row.run_id,
+    actor: 'user',
+    action: 'extraction_confirmed',
+    payload: {
+      extractionId: row.id,
+      sourceId: row.source_id,
+      field: row.field,
+      reviewer: row.reviewer,
+    },
+  });
 
   return row;
 }
@@ -1223,6 +1249,19 @@ export function saveDraft(
     row.created_at,
   );
 
+  recordAuditEvent(db, {
+    runId: row.run_id,
+    actor: input.writer === 'model' ? 'model' : 'user',
+    action: 'draft_saved',
+    payload: {
+      draftId: row.id,
+      parentId: row.parent_id,
+      mode: row.mode,
+      writer: row.writer,
+      ...(row.model ? { model: row.model } : {}),
+    },
+  });
+
   return row;
 }
 
@@ -1309,6 +1348,19 @@ export function recordStance(
     row.reviewer,
     row.confirmed_at,
   );
+
+  recordAuditEvent(db, {
+    runId: row.run_id,
+    actor: 'user',
+    action: 'stance_confirmed',
+    payload: {
+      stanceId: row.id,
+      sourceId: row.source_id,
+      targetHash: row.target_hash,
+      label: row.label,
+      reviewer: row.reviewer,
+    },
+  });
 
   return row;
 }

@@ -7,7 +7,11 @@ import { initProject } from '../src/project/project.js';
 import {
   createRun,
   loadRunSources,
+  recordExtractionValue,
+  recordScreeningDecision,
+  recordStance,
   saveBrief,
+  saveDraft,
   savePayload,
   saveRunSources,
 } from '../src/project/db.js';
@@ -222,6 +226,62 @@ describe('saveBrief', () => {
     await expect(
       savePayload(db, project.root, 'run-1', payload('{"ok":true}', 'small')),
     ).rejects.toThrow('Project payload storage');
+
+    db.close();
+  });
+
+  it('records audit events for decisions and drafts', async () => {
+    const parent = await temporaryDirectory();
+    const project = await initProject('demo', parent);
+    const db = project.db;
+    createRun(db, { id: 'run-1', query: 'testing', config: {} });
+    saveRunSources(db, 'run-1', 'testing', [source('The abstract.')]);
+
+    recordScreeningDecision(db, {
+      runId: 'run-1',
+      sourceId: 'doi:10.1/repeat',
+      decision: 'include',
+      relevance: 'core',
+      reviewer: 'ada',
+    });
+    recordExtractionValue(db, {
+      runId: 'run-1',
+      sourceId: 'doi:10.1/repeat',
+      field: 'finding',
+      value: 'A finding.',
+      reviewer: 'ada',
+    });
+    recordStance(db, {
+      runId: 'run-1',
+      sourceId: 'doi:10.1/repeat',
+      target: 'thesis',
+      targetHash: 'hash',
+      label: 'supports',
+      reviewer: 'ada',
+    });
+    saveDraft(db, {
+      runId: 'run-1',
+      mode: 'review',
+      writer: 'template',
+      markdown: '# Draft',
+      structured: {},
+      basis: {},
+    });
+
+    const actions = (
+      db
+        .prepare('SELECT action FROM audit_events ORDER BY at')
+        .all() as Array<{ action: string }>
+    ).map((row) => row.action);
+
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        'screening_decision',
+        'extraction_confirmed',
+        'stance_confirmed',
+        'draft_saved',
+      ]),
+    );
 
     db.close();
   });
