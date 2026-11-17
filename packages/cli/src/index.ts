@@ -73,6 +73,7 @@ import {
   recordAuditEvent,
   recordExtraction,
   recordExtractionSuggestion,
+  recordModelArtifact,
   recordScreeningDecision,
   recordScreeningSuggestion,
   recordStanceDecision,
@@ -91,12 +92,14 @@ import {
   savePayload,
   saveRunSources,
   searchLiterature,
+  setRunModel,
   shortHash,
   snapshotForRankedSources,
   suggestExtraction,
   suggestScreening,
   suggestStance,
   verifyDoi,
+  verifyModelArtifact,
   CitationError,
   DraftError,
   ExtractionError,
@@ -1013,6 +1016,16 @@ program
         );
       }
 
+      if (modelOptions) {
+        await recordModelArtifactFor(project.db, runId, modelOptions);
+      }
+      if (
+        supportModelOptions &&
+        supportModelOptions.model !== modelOptions?.model
+      ) {
+        await recordModelArtifactFor(project.db, runId, supportModelOptions);
+      }
+
       const raw = modelOptions
         ? await generateModelDraft(bundle, {
             ...modelOptions,
@@ -1180,6 +1193,16 @@ program
           `winnow: sending ${bundle.claims.length} claims from ` +
             `${bundle.sources.length} sources to ${hostOf(remoteModel.baseUrl)}\n`,
         );
+      }
+
+      if (modelOptions) {
+        await recordModelArtifactFor(project.db, runId, modelOptions);
+      }
+      if (
+        supportModelOptions &&
+        supportModelOptions.model !== modelOptions?.model
+      ) {
+        await recordModelArtifactFor(project.db, runId, supportModelOptions);
       }
 
       const map = buildArgumentMap(bundle, thesis);
@@ -2036,6 +2059,55 @@ async function runCounterPass(input: {
     payloadFailures,
     saved,
   };
+}
+
+async function recordModelArtifactFor(
+  db: Parameters<typeof recordModelArtifact>[0],
+  runId: string,
+  options: { baseUrl: string; model: string },
+): Promise<void> {
+  const artifact = await verifyModelArtifact({
+    baseUrl: options.baseUrl,
+    model: options.model,
+  });
+  const change = recordModelArtifact(db, artifact);
+  setRunModel(db, runId, {
+    name: artifact.name,
+    digest: artifact.digest,
+  });
+  recordAuditEvent(db, {
+    runId,
+    actor: 'system',
+    action: 'model_artifact',
+    payload: {
+      name: artifact.name,
+      digest: artifact.digest,
+      quantization: artifact.quantization,
+      source: artifact.source,
+      verified: artifact.verified,
+      endpoint: artifact.endpoint,
+      ...(artifact.error ? { error: artifact.error } : {}),
+    },
+  });
+
+  if (artifact.verified) {
+    process.stderr.write(
+      `winnow: model artifact ${artifact.name} ${artifact.digest}` +
+        `${artifact.quantization ? ` (${artifact.quantization})` : ''}\n`,
+    );
+  } else {
+    process.stderr.write(
+      `winnow: model artifact ${artifact.name} not verified: ` +
+        `${artifact.error ?? 'no digest available'}\n`,
+    );
+  }
+
+  if (change.changed) {
+    process.stderr.write(
+      `winnow: model artifact ${artifact.name} changed from ` +
+        `${change.previousDigest ?? 'unknown'} to ${artifact.digest ?? 'unknown'}\n`,
+    );
+  }
 }
 
 async function savePayloads(

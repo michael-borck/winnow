@@ -112,6 +112,20 @@ export interface AcademicSource {
   isVersionOfRecord?: boolean;
 }
 
+export interface ModelArtifact {
+  name: string;
+  digest: string | null;
+  quantization: string | null;
+  source: string;
+  revision: string | null;
+  size: number | null;
+  endpoint: string;
+  verified: boolean;
+  verifiedAt: string;
+  error?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface RetrievedCandidate {
   source: AcademicSource;
   provider: string;

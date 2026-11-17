@@ -353,7 +353,11 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow review` — evidence bundle, template or local-model writer,
   deterministic checks 1–5, optional support entailment pass, kept/marked/held/
   dropped report, citeproc citations and an evidence appendix. `--csl` accepts a
-  custom style.
+  custom style. The model writer records the artifact digest and quantization
+  when the endpoint exposes them.
+- Model artifacts — Ollama digests and quantization are stored in
+  `model_artifacts`; other OpenAI-compatible endpoints are checked for
+  availability but usually cannot provide a digest.
 - `winnow stance` — human stance labels relative to a thesis, separate heuristic
   suggestions, and CSV/JSON import-export.
 - `winnow argue` — argument map and draft with supporting, opposing, mixed and

@@ -76,6 +76,8 @@ Before drafting, Winnow builds an evidence bundle from confirmed includes and co
 
 The writer can be a deterministic template or an OpenAI-compatible local model. The model sees the bundle and the brief, not the whole corpus. Malformed output is rejected, not repaired.
 
+Before generation, Winnow inspects the model endpoint. For Ollama it records the tag digest and quantization. Other OpenAI-compatible endpoints are checked for availability but usually cannot supply a digest. A digest change is reported and recorded in the audit trail.
+
 Every sentence is tagged as evidence, synthesis, coverage, or framing. Checks 1 to 5 then run deterministically:
 
 1. Schema. The output parses and each sentence has the fields its type requires.
@@ -101,6 +103,7 @@ This is reproducibility as an audit trail. It is not a promise that a live searc
 The v0.5 build implements retrieval, verification, screening, extraction, stance, drafting, checks 1 to 5, the support pass, the hold queue, citation styles, citation chasing, replay, the web UI, and the Electron shell. A few guarantees are specified but not yet enforced:
 
 - Quote checking verifies the quote at its declared span in the normalised source text. Source-text hash pinning is specified, not yet stored.
+- Model artifact verification reads Ollama digests and quantization. Other OpenAI-compatible endpoints are checked for availability but usually cannot supply a weight digest.
 - The Weigh step is specified. Study design, quality flags, and coverage counts are not yet computed as a separate command.
 - A per-project consent gate with a payload preview is specified for cloud models. v0.5 prints a warning when the model endpoint is not local.
 - Independent duplicate extraction, exhaustive search mode, installers, and notarization are not implemented.

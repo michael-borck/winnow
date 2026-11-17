@@ -7,6 +7,7 @@ import type {
   AcademicSource,
   IntegrityNotice,
   LinkStatus,
+  ModelArtifact,
   ProviderReference,
   RankedSource,
   RetrievalPayload,
@@ -21,7 +22,7 @@ import { normaliseText } from '../text/normalise.js';
 import { stableHash } from '../text/ids.js';
 import { briefId, type Brief } from '../brief/brief.js';
 
-export const LATEST_SCHEMA_VERSION = 8;
+export const LATEST_SCHEMA_VERSION = 9;
 
 const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_PROJECT_PAYLOAD_BYTES = 250 * 1024 * 1024;
@@ -37,6 +38,20 @@ export interface RunRow {
   component_health_json: string;
   output_sha256: string | null;
   status: string;
+  model_name: string | null;
+  model_digest: string | null;
+}
+
+export interface ModelArtifactRow {
+  name: string;
+  digest: string | null;
+  quantization: string | null;
+  source: string;
+  revision: string | null;
+  size: number | null;
+  endpoint: string;
+  details_json: string | null;
+  verified_at: string;
 }
 
 export interface PayloadRow {
@@ -175,7 +190,9 @@ export function migrate(db: DatabaseSync): void {
       stages_json TEXT NOT NULL DEFAULT '{}',
       component_health_json TEXT NOT NULL DEFAULT '{}',
       output_sha256 TEXT,
-      status TEXT NOT NULL DEFAULT 'running'
+      status TEXT NOT NULL DEFAULT 'running',
+      model_name TEXT,
+      model_digest TEXT
     );
 
     CREATE TABLE IF NOT EXISTS briefs (
@@ -402,6 +419,18 @@ export function migrate(db: DatabaseSync): void {
       action TEXT NOT NULL,
       payload_json TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS model_artifacts (
+      name TEXT PRIMARY KEY,
+      digest TEXT,
+      quantization TEXT,
+      source TEXT NOT NULL,
+      revision TEXT,
+      size INTEGER,
+      endpoint TEXT NOT NULL,
+      details_json TEXT,
+      verified_at TEXT NOT NULL
+    );
   `);
 
   const existing = db
@@ -423,6 +452,8 @@ export function migrate(db: DatabaseSync): void {
     addColumnIfMissing(db, 'sources', 'work_key', 'TEXT');
     addColumnIfMissing(db, 'sources', 'variant_of', 'TEXT');
     addColumnIfMissing(db, 'sources', 'is_version_of_record', 'INTEGER');
+    addColumnIfMissing(db, 'runs', 'model_name', 'TEXT');
+    addColumnIfMissing(db, 'runs', 'model_digest', 'TEXT');
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
       LATEST_SCHEMA_VERSION,
       new Date().toISOString(),
@@ -720,6 +751,64 @@ export function recordAuditEvent(
     JSON.stringify(input.payload),
   );
   return id;
+}
+
+export function recordModelArtifact(
+  db: DatabaseSync,
+  artifact: ModelArtifact,
+): { changed: boolean; previousDigest: string | null } {
+  const existing = getModelArtifact(db, artifact.name);
+  const changed = existing
+    ? existing.digest !== artifact.digest
+    : false;
+  const previousDigest = existing?.digest ?? null;
+
+  db.prepare(
+    `INSERT INTO model_artifacts
+     (name, digest, quantization, source, revision, size, endpoint, details_json, verified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET
+       digest = excluded.digest,
+       quantization = excluded.quantization,
+       source = excluded.source,
+       revision = excluded.revision,
+       size = excluded.size,
+       endpoint = excluded.endpoint,
+       details_json = excluded.details_json,
+       verified_at = excluded.verified_at`,
+  ).run(
+    artifact.name,
+    artifact.digest,
+    artifact.quantization,
+    artifact.source,
+    artifact.revision,
+    artifact.size,
+    artifact.endpoint,
+    artifact.details ? JSON.stringify(artifact.details) : null,
+    artifact.verifiedAt,
+  );
+
+  return { changed, previousDigest };
+}
+
+export function getModelArtifact(
+  db: DatabaseSync,
+  name: string,
+): ModelArtifactRow | null {
+  const row = db
+    .prepare('SELECT * FROM model_artifacts WHERE name = ?')
+    .get(name) as ModelArtifactRow | undefined;
+  return row ?? null;
+}
+
+export function setRunModel(
+  db: DatabaseSync,
+  runId: string,
+  input: { name: string; digest: string | null },
+): void {
+  db.prepare(
+    'UPDATE runs SET model_name = ?, model_digest = ? WHERE id = ?',
+  ).run(input.name, input.digest, runId);
 }
 
 export function getRun(db: DatabaseSync, runId: string): RunRow | null {

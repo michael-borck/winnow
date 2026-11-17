@@ -129,6 +129,10 @@ export {
   type ChatMessage,
 } from './model/client.js';
 export {
+  verifyModelArtifact,
+  type VerifyModelArtifactOptions,
+} from './model/artifact.js';
+export {
   generateModelDraft,
   buildModelMessages,
   parseModelDraft,
@@ -188,6 +192,9 @@ export {
   getPayloads,
   loadRunSources,
   readPayload,
+  recordModelArtifact,
+  getModelArtifact,
+  setRunModel,
   recomputeCitability,
   getCurrentScreening,
   recordScreeningDecision,
@@ -210,6 +217,7 @@ export {
   runSourceCounts,
   LATEST_SCHEMA_VERSION,
   type RunRow,
+  type ModelArtifactRow,
   type PayloadRow,
   type StoredSource,
   type ScreeningRow,
