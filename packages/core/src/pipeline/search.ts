@@ -11,6 +11,19 @@ import { verifySource } from '../verification/cite-sight-adapter.js';
 import { isCitable } from '../verification/citability.js';
 import { mapLimit } from '../util/async.js';
 
+export const CRITICAL_TERMS = [
+  'limitations',
+  'critique',
+  '"no evidence"',
+  '"fails to"',
+  '"replication failure"',
+  'criticism',
+];
+
+export function counterQuery(topic: string): string {
+  return `${topic} ${CRITICAL_TERMS.join(' OR ')}`;
+}
+
 export async function searchLiterature(
   topic: string,
   options: SearchOptions,

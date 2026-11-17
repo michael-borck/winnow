@@ -184,6 +184,22 @@ winnow doctor --format json --out doctor.json
 `--offline` skips provider and model network checks. A missing local model is a
 warning, not a failure. A failed provider or database check exits 1.
 
+## Project data
+
+`winnow project export` writes a portable `.tar.gz` of the project folder,
+including the database and payloads. `winnow project delete --purge` removes the
+project and its local data. `winnow cache purge` deletes stored payloads but
+keeps the database and drafts.
+
+```bash
+winnow project export . --out ../winnow-review.tar.gz
+winnow cache purge
+winnow project delete old-review --purge --yes
+```
+
+`cache purge` keeps the `raw_payloads` rows, so `winnow replay` reports the
+missing payloads rather than pretending the run is intact.
+
 ## Drafting
 
 `winnow review` builds an evidence bundle from confirmed values with quotes,
@@ -323,7 +339,8 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
   fields and machine filters separated from judged criteria.
 - `winnow search` — OpenAlex and Crossref retrieval, deduplication, orthogonal
   verification, citability, RRF ranking, payload storage, JSON/CSV/BibTeX/CSL
-  export. `--brief` supplies the topic and filters.
+  export. `--brief` supplies the topic and filters; `--counter` also saves a
+  separate critical-terms run.
 - `winnow screen` — append-only human decisions, separate heuristic suggestions,
   three priority tiers, reason codes, brief-exclusion flags and counts, and
   CSV/JSON import-export.
@@ -360,6 +377,9 @@ winnow counter . --of 10.1038/s41586-020-2649-2 \
 - `winnow doctor` — checks Node, project database integrity, provider
   reachability, the model endpoint, key presence and the hosts Winnow may
   contact. `--offline` skips network checks and key values are never printed.
+- `winnow project export` / `project delete --purge` / `cache purge` — portable
+  project archives, explicit project deletion, and payload cache purging that
+  keeps the database.
 - **Local web UI** — sources, evidence, drafts and queue at `127.0.0.1:4317`,
   with a session token for writes. The Drafts tab can generate a template or
   model review, run support triage, use a named or custom CSL, and compare a

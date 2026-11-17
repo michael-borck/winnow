@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
+import { create as createTar } from 'tar';
 import {
   applySupportCheck,
   BriefError,
@@ -12,7 +13,9 @@ import {
   buildEvidenceBundle,
   checkDraft,
   citability,
+  counterQuery,
   createRun,
+  CRITICAL_TERMS,
   DEFAULT_FIELDS,
   detectExtractionFormat,
   detectScreeningFormat,
@@ -135,6 +138,7 @@ interface SearchCliOptions {
   until?: string;
   type?: string;
   openAccess?: boolean;
+  counter?: boolean;
   provider: string;
   format: string;
   out?: string;
@@ -271,6 +275,19 @@ interface DoctorCliOptions {
   out?: string;
 }
 
+interface ProjectExportCliOptions {
+  out?: string;
+}
+
+interface ProjectDeleteCliOptions {
+  purge?: boolean;
+  yes?: boolean;
+}
+
+interface CachePurgeCliOptions {
+  project?: string;
+}
+
 const program = new Command();
 
 program
@@ -326,11 +343,12 @@ program
   .description('Explore: retrieve, deduplicate, verify, rank and select sources')
   .option('--project <path>', 'project directory or name (default: nearest project)')
   .option('--brief <file>', 'brief file with question, thesis and filters')
-  .option('--limit <n>', 'maximum selected sources', '20')
+  .option('--limit <n>', 'maximum selected sources', '40')
   .option('--since <year>', 'earliest publication year')
   .option('--until <year>', 'latest publication year')
   .option('--type <type>', 'source type filter, e.g. article or preprint')
   .option('--open-access', 'only sources with an open-access link')
+  .option('--counter', 'also run a separate counter-evidence search')
   .option('--provider <list>', 'comma-separated providers', 'openalex,crossref')
   .option('--format <format>', 'table, json, csv, bibtex or csl', 'table')
   .option('--out <file>', 'write output to a file')
@@ -396,6 +414,11 @@ program
       ? await resolveProjectRoot(options.project)
       : null;
 
+    const providers = options.provider
+      .split(',')
+      .map((provider) => provider.trim())
+      .filter(Boolean);
+
     const result = await searchLiterature(topic, {
       limit,
       since,
@@ -403,10 +426,7 @@ program
       type: options.type,
       types,
       openAccessOnly,
-      providers: options.provider
-        .split(',')
-        .map((provider) => provider.trim())
-        .filter(Boolean),
+      providers,
       mailto: options.mailto,
       checkLinks: options.checkLinks === true,
     });
@@ -479,7 +499,37 @@ program
       );
     }
 
-    if (result.failures.length > 0 || payloadFailures.length > 0) {
+    let counterFailed = false;
+    if (options.counter) {
+      const counter = await runCounterPass({
+        projectRoot,
+        topic,
+        limit,
+        providers,
+        mailto: options.mailto,
+        counterOf: result.runId,
+      });
+      process.stderr.write(
+        `counter run ${counter.runId} ${counter.saved ? 'saved' : 'not saved'} ` +
+          `with ${counter.selectedCount} selected\n`,
+      );
+      for (const failure of [
+        ...counter.failures,
+        ...counter.payloadFailures,
+      ]) {
+        process.stderr.write(
+          `winnow: counter payload ${failure.provider} not stored: ${failure.message}\n`,
+        );
+      }
+      counterFailed =
+        counter.failures.length > 0 || counter.payloadFailures.length > 0;
+    }
+
+    if (
+      counterFailed ||
+      result.failures.length > 0 ||
+      payloadFailures.length > 0
+    ) {
       process.exitCode = 1;
     } else if (result.citableCount === 0) process.exitCode = 3;
     else process.exitCode = 0;
@@ -1161,14 +1211,6 @@ program
         );
       }
 
-      const criticalTerms = [
-        'limitations',
-        'critique',
-        '"no evidence"',
-        '"fails to"',
-        '"replication failure"',
-        'criticism',
-      ];
       const result = options.of
         ? await runCitationChase(options.of, {
             limit,
@@ -1179,7 +1221,7 @@ program
               error instanceof Error ? error.message : String(error),
             );
           })
-        : await searchLiterature(`${topic} ${criticalTerms.join(' OR ')}`, {
+        : await searchLiterature(counterQuery(topic), {
             limit,
             providers: options.provider
               .split(',')
@@ -1202,7 +1244,7 @@ program
           counterOf: latest?.id ?? null,
           chaseOf: options.of ?? null,
           topic,
-          criticalTerms: options.of ? [] : criticalTerms,
+          criticalTerms: options.of ? [] : CRITICAL_TERMS,
           limit,
           providers: options.of ? null : options.provider,
           mailto: options.mailto ?? null,
@@ -1607,6 +1649,104 @@ program
     process.exitCode = report.ok ? 0 : 1;
   });
 
+const projectCommand = program
+  .command('project')
+  .description('Manage a project folder');
+
+projectCommand
+  .command('export <project>')
+  .description('Write a portable archive of a project')
+  .option('--out <file>', 'archive path (required)')
+  .action(async (projectArg: string, options: ProjectExportCliOptions) => {
+    if (!options.out) throw new UsageError('--out is required');
+    const root = await requireProjectRoot(projectArg);
+    const outPath = path.resolve(options.out);
+    if (isInside(root, outPath)) {
+      throw new UsageError('--out must be outside the project folder');
+    }
+
+    await mkdir(path.dirname(outPath), { recursive: true });
+    await createTar(
+      {
+        gzip: true,
+        file: outPath,
+        cwd: path.dirname(root),
+      },
+      [path.basename(root) || 'project'],
+    );
+    process.stdout.write(`Exported ${root} to ${outPath}\n`);
+  });
+
+projectCommand
+  .command('delete <project>')
+  .description('Delete a project folder and its local data')
+  .option('--purge', 'delete the project folder')
+  .option('--yes', 'skip the confirmation prompt')
+  .action(async (projectArg: string, options: ProjectDeleteCliOptions) => {
+    if (!options.purge) {
+      throw new UsageError('Use --purge to delete the project');
+    }
+    const root = await requireProjectRoot(projectArg);
+
+    if (!options.yes) {
+      if (!process.stdin.isTTY) {
+        throw new UsageError(
+          '--yes is required when not running in a terminal',
+        );
+      }
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      try {
+        const answer = (
+          await rl.question(`Delete ${root} and all local data? [y/N] `)
+        )
+          .trim()
+          .toLowerCase();
+        if (answer !== 'y' && answer !== 'yes') {
+          process.stdout.write('Cancelled.\n');
+          return;
+        }
+      } finally {
+        rl.close();
+      }
+    }
+
+    await rm(root, { recursive: true, force: true });
+    process.stdout.write(`Deleted ${root}\n`);
+  });
+
+const cacheCommand = program
+  .command('cache')
+  .description('Manage local caches');
+
+cacheCommand
+  .command('purge')
+  .description('Delete stored payloads without deleting project metadata')
+  .option('--project <path>', 'project directory or name (default: nearest project)')
+  .action(async (options: CachePurgeCliOptions) => {
+    const root = await requireProjectRoot(options.project);
+    const payloadsDir = path.join(root, 'payloads');
+
+    let count = 0;
+    try {
+      const entries = await readdir(payloadsDir);
+      count = entries.filter((name) => !name.startsWith('.')).length;
+    } catch {
+      count = 0;
+    }
+
+    await rm(payloadsDir, { recursive: true, force: true });
+    await mkdir(payloadsDir, { recursive: true });
+    process.stdout.write(
+      `Purged ${count} payload file(s) from ${payloadsDir}\n`,
+    );
+    process.stdout.write(
+      'Database rows were kept; replay will report missing payloads.\n',
+    );
+  });
+
 program.parseAsync(process.argv).catch((error: unknown) => {
   if (error instanceof UsageError) {
     process.stderr.write(`winnow: ${error.message}\n`);
@@ -1688,6 +1828,86 @@ async function targetsFrom(target: string): Promise<string[]> {
     if (error instanceof UsageError) throw error;
     throw new UsageError(`Expected a DOI or a readable text file: ${target}`);
   }
+}
+
+async function runCounterPass(input: {
+  projectRoot: string | null;
+  topic: string;
+  limit: number;
+  providers: string[];
+  mailto?: string;
+  counterOf: string;
+}): Promise<{
+  runId: string;
+  selectedCount: number;
+  failures: SearchResult['failures'];
+  payloadFailures: SearchResult['failures'];
+  saved: boolean;
+}> {
+  const result = await searchLiterature(counterQuery(input.topic), {
+    limit: input.limit,
+    providers: input.providers,
+    mailto: input.mailto,
+    checkLinks: false,
+  });
+
+  let saved = false;
+  let payloadFailures: SearchResult['failures'] = [];
+
+  if (input.projectRoot) {
+    const project = await openProject(input.projectRoot);
+    try {
+      const snapshot = snapshotForRankedSources(
+        result.runId,
+        result.query,
+        result.sources,
+      );
+      createRun(project.db, {
+        id: result.runId,
+        query: result.query,
+        config: {
+          polarity: 'counter',
+          counterOf: input.counterOf,
+          topic: input.topic,
+          criticalTerms: CRITICAL_TERMS,
+          limit: input.limit,
+          providers: input.providers.join(','),
+          mailto: input.mailto ?? null,
+        },
+      });
+      payloadFailures = await savePayloads(
+        project.db,
+        project.root,
+        result.runId,
+        result.payloads,
+      );
+      saveRunSources(project.db, result.runId, result.query, result.sources);
+      finishRun(project.db, result.runId, {
+        outputSha256: hashSnapshot(snapshot),
+        stages: {
+          retrieve:
+            result.failures.length || payloadFailures.length ? 'partial' : 'ok',
+          verify: 'ok',
+          rank: 'ok',
+        },
+        componentHealth: {
+          failed: result.failures.length > 0 || payloadFailures.length > 0,
+          failures: [...result.failures, ...payloadFailures],
+        },
+      });
+      saved = true;
+    } finally {
+      project.db.close();
+    }
+  }
+
+  return {
+    runId: result.runId,
+    selectedCount: result.selectedCount,
+    failures: result.failures,
+    payloadFailures,
+    saved,
+  };
 }
 
 async function savePayloads(
@@ -2433,4 +2653,12 @@ async function emit(text: string, out?: string): Promise<void> {
 function truncate(value: string, length: number): string {
   if (value.length <= length) return value;
   return `${value.slice(0, Math.max(0, length - 1))}…`;
+}
+
+function isInside(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return (
+    relative === '' ||
+    (!relative.startsWith('..') && !path.isAbsolute(relative))
+  );
 }

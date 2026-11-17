@@ -21,7 +21,7 @@ export {
 
 export { dedupeCandidates } from './pipeline/dedupe.js';
 export { rankCandidates } from './pipeline/rank.js';
-export { searchLiterature } from './pipeline/search.js';
+export { searchLiterature, CRITICAL_TERMS, counterQuery } from './pipeline/search.js';
 export { runCitationChase } from './pipeline/citation-chase.js';
 
 export {

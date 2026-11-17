@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { MergedCandidate, RetrievedCandidate, VerificationRecord } from '../src/types.js';
+import {
+  CRITICAL_TERMS,
+  counterQuery,
+} from '../src/pipeline/search.js';
 import { dedupeCandidates } from '../src/pipeline/dedupe.js';
 import { rankCandidates } from '../src/pipeline/rank.js';
 
@@ -35,6 +39,15 @@ function candidate(
     },
   };
 }
+
+describe('counterQuery', () => {
+  it('appends the critical terms to the topic', () => {
+    const query = counterQuery('retrieval augmented generation');
+    expect(query).toContain('retrieval augmented generation limitations OR critique');
+    expect(query).toContain('"replication failure"');
+    expect(CRITICAL_TERMS).toContain('criticism');
+  });
+});
 
 describe('dedupeCandidates', () => {
   it('merges the same DOI from two providers and keeps both ranks', () => {
