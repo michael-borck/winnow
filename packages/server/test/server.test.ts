@@ -5,7 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initProject } from '../../core/src/project/project.js';
-import { createRun, finishRun } from '../../core/src/project/db.js';
+import {
+  createRun,
+  finishRun,
+  recordScreeningDecision,
+  saveRunSources,
+} from '../../core/src/project/db.js';
+import { recordExtraction } from '../../core/src/extraction/extraction.js';
+import type { RankedSource, VerificationRecord } from '../../core/src/types.js';
 
 const serverPath = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const temporaryDirectories: string[] = [];
@@ -14,11 +21,50 @@ let child: ChildProcess | undefined;
 let base = '';
 let token = '';
 let runId = '';
+let emptyRunId = '';
 
 async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'winnow-server-'));
   temporaryDirectories.push(directory);
   return directory;
+}
+
+function verification(): VerificationRecord {
+  return {
+    identity: 'verified',
+    matchCategory: 'exact',
+    integrity: ['none_found'],
+    linkStatus: 'no_url',
+    completeness: { status: 'complete' },
+    confidence: 1,
+    provider: 'crossref',
+    checkedAt: '2026-11-16T00:00:00.000Z',
+    evidence: {},
+  };
+}
+
+function source(id: string, title: string, rank: number): RankedSource {
+  const doi = id.replace(/^doi:/, '');
+  return {
+    source: {
+      id,
+      title,
+      authors: ['Lovelace, Ada'],
+      year: 2024,
+      venue: 'Journal of Testing',
+      type: 'article',
+      doi,
+      url: `https://doi.org/${doi}`,
+      abstract: 'The results show that retrieval improves accuracy.',
+      sourceProvider: 'openalex',
+    },
+    verification: verification(),
+    citability: 'citable',
+    rrfScore: 1 / (60 + rank),
+    rank,
+    selected: true,
+    providers: [{ provider: 'openalex', rank }],
+  };
 }
 
 function startServer(projectRoot: string): Promise<number> {
@@ -88,8 +134,34 @@ beforeAll(async () => {
   const project = await initProject('demo', parent);
   runId = 'run-server-test';
   createRun(project.db, { id: runId, query: 'testing', config: {} });
+  saveRunSources(project.db, runId, 'testing', [
+    source('doi:10.1/a', 'A study of retrieval', 1),
+    source('doi:10.1/b', 'A study of synthesis', 2),
+  ]);
+  recordScreeningDecision(project.db, {
+    runId,
+    sourceId: 'doi:10.1/a',
+    decision: 'include',
+    relevance: 'core',
+    reviewer: 'ada',
+  });
+  recordExtraction(project.db, {
+    runId,
+    sourceId: 'doi:10.1/a',
+    field: 'finding',
+    value: 'Retrieval improves accuracy.',
+    quote: 'The results show that retrieval improves accuracy.',
+    reviewer: 'ada',
+  });
   finishRun(project.db, runId, {
     outputSha256: 'test',
+    stages: { retrieve: 'ok' },
+    componentHealth: { failed: false },
+  });
+  emptyRunId = 'run-server-empty';
+  createRun(project.db, { id: emptyRunId, query: 'empty', config: {} });
+  finishRun(project.db, emptyRunId, {
+    outputSha256: 'empty',
     stages: { retrieve: 'ok' },
     componentHealth: { failed: false },
   });
@@ -158,7 +230,7 @@ describe('server trust boundary', () => {
         'x-winnow-token': token,
       },
       body: JSON.stringify({
-        runId,
+        runId: emptyRunId,
         writer: 'model',
         model: 'qwen3:8b',
         baseUrl: 'https://llm.example.com/v1',
@@ -177,7 +249,7 @@ describe('server trust boundary', () => {
         'x-winnow-token': token,
       },
       body: JSON.stringify({
-        runId,
+        runId: emptyRunId,
         writer: 'model',
         model: 'qwen3:8b',
         baseUrl: 'https://llm.example.com/v1',
@@ -195,7 +267,7 @@ describe('server trust boundary', () => {
         'x-winnow-token': token,
       },
       body: JSON.stringify({
-        runId,
+        runId: emptyRunId,
         writer: 'model',
         model: 'qwen3:8b',
         baseUrl: 'file:///etc/passwd',
@@ -222,5 +294,87 @@ describe('server trust boundary', () => {
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('DTDs');
+  });
+});
+
+describe('server project API', () => {
+  it('lists sources and records a screening decision', async () => {
+    const sourcesResponse = await fetch(`${base}/api/sources?run=${runId}`, {
+      headers: { 'x-winnow-token': token },
+    });
+    expect(sourcesResponse.status).toBe(200);
+    const sources = (await sourcesResponse.json()) as {
+      sources: Array<{ id: string; decision: string | null }>;
+    };
+    expect(sources.sources).toHaveLength(2);
+
+    const decision = await fetch(`${base}/api/screen`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-winnow-token': token,
+        origin: base,
+      },
+      body: JSON.stringify({
+        runId,
+        sourceId: 'doi:10.1/b',
+        decision: 'exclude',
+        reasonCode: 'off_topic',
+        reviewer: 'web',
+      }),
+    });
+    expect(decision.status).toBe(200);
+
+    const after = await fetch(`${base}/api/sources?run=${runId}`, {
+      headers: { 'x-winnow-token': token },
+    });
+    const updated = (await after.json()) as {
+      sources: Array<{ id: string; decision: string | null }>;
+    };
+    expect(
+      updated.sources.find((item) => item.id === 'doi:10.1/b')?.decision,
+    ).toBe('exclude');
+  });
+
+  it('returns evidence and generates a template draft', async () => {
+    const evidenceResponse = await fetch(
+      `${base}/api/evidence?run=${runId}`,
+      { headers: { 'x-winnow-token': token } },
+    );
+    expect(evidenceResponse.status).toBe(200);
+    const evidence = (await evidenceResponse.json()) as {
+      rows: Array<{ values: Record<string, string> }>;
+    };
+    expect(evidence.rows).toHaveLength(1);
+    expect(evidence.rows[0]!.values.finding).toBe(
+      'Retrieval improves accuracy.',
+    );
+
+    const review = await fetch(`${base}/api/review`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-winnow-token': token,
+        origin: base,
+      },
+      body: JSON.stringify({ runId, writer: 'template' }),
+    });
+    expect(review.status).toBe(200);
+    const result = (await review.json()) as { draftId: string };
+    expect(result.draftId).toBeTruthy();
+
+    const draftResponse = await fetch(
+      `${base}/api/drafts/${result.draftId}`,
+      { headers: { 'x-winnow-token': token } },
+    );
+    expect(draftResponse.status).toBe(200);
+    const draft = (await draftResponse.json()) as { markdown: string };
+    expect(draft.markdown).toContain('#');
+
+    const drafts = await fetch(`${base}/api/drafts?run=${runId}`, {
+      headers: { 'x-winnow-token': token },
+    });
+    const list = (await drafts.json()) as { drafts: unknown[] };
+    expect(list.drafts.length).toBeGreaterThan(0);
   });
 });
