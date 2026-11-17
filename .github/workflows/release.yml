@@ -23,7 +23,7 @@ jobs:
       install-command: npm ci
       build-command: ''
       preflight-command: npm run typecheck && npm test
-      package-command: npm run package:desktop:platform -- --publish always
+      package-command: npm run package:desktop:platform
       notarize-check-command: npm run package:desktop:mac -- --arm64 --publish never
       notarize-check-artifact-root: packages/desktop/release
       publish-mode: builder
