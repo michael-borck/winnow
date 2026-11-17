@@ -29,6 +29,7 @@
     "package:desktop:mac": "npm run prepare:desktop && npm run package:mac -w @michaelborck/winnow-desktop",
     "package:desktop:win": "npm run prepare:desktop && npm run package:win -w @michaelborck/winnow-desktop",
     "package:desktop:linux": "npm run prepare:desktop && npm run package:linux -w @michaelborck/winnow-desktop",
+    "package:desktop:platform": "npm run prepare:desktop && npm run package -w @michaelborck/winnow-desktop -- --$PLATFORM",
     "desktop": "npm run build && npm run start -w @michaelborck/winnow-desktop"
   },
   "devDependencies": {
