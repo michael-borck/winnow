@@ -35,6 +35,7 @@ await writeFile(
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 await execFileAsync(npm, ['install', '--omit=dev', '--prefix', serverDir], {
   cwd: repoRoot,
+  shell: process.platform === 'win32',
   maxBuffer: 10 * 1024 * 1024,
 });
 

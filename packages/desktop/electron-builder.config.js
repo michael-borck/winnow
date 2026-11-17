@@ -35,6 +35,7 @@ module.exports = {
   win: {
     target: [{ target: 'nsis', arch: ['x64'] }],
     icon: 'assets/icon.png',
+    executableName: 'winnow',
   },
   nsis: {
     oneClick: false,
@@ -49,6 +50,7 @@ module.exports = {
     ],
     icon: 'assets/icon.png',
     category: 'Education',
+    executableName: 'winnow',
   },
   deb: {
     depends: [

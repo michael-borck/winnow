@@ -56,10 +56,24 @@ jobs:
 
       - run: npm run build
 
-      - run: npm publish -w @michaelborck/winnow-core --access public
+      - name: Publish core
+        run: |
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          if npm view "@michaelborck/winnow-core@$VERSION" version >/dev/null 2>&1; then
+            echo "@michaelborck/winnow-core@$VERSION is already published"
+          else
+            npm publish -w @michaelborck/winnow-core --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - run: npm publish -w @michaelborck/winnow-cli --access public
+      - name: Publish CLI
+        run: |
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          if npm view "@michaelborck/winnow-cli@$VERSION" version >/dev/null 2>&1; then
+            echo "@michaelborck/winnow-cli@$VERSION is already published"
+          else
+            npm publish -w @michaelborck/winnow-cli --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
