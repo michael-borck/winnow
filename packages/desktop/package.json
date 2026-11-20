@@ -20,5 +20,8 @@
     "electron": "45.3.2",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

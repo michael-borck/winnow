@@ -6,6 +6,7 @@ import {
   shell,
   type MenuItemConstructorOptions,
 } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -242,6 +243,13 @@ function buildMenu(): void {
 app.whenReady().then(async () => {
   try {
     buildMenu();
+    // Fleet convention (app-hq/templates/electron): silent update check 30s
+    // after launch; the update applies on next restart.
+    if (!app.isPackaged) {
+      setTimeout(() => {
+        void autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+      }, 30_000);
+    }
     const explicit = resolveProjectFromArgv();
     const root = explicit && isProject(explicit) ? explicit : await chooseProject();
     if (!root) {
