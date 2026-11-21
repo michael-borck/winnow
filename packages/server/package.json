@@ -1,6 +1,6 @@
 {
   "name": "@michaelborck/winnow-server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Local web server for Winnow",
   "type": "module",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@michaelborck/winnow-core": "1.1.0",
+    "@michaelborck/winnow-core": "1.2.0",
     "express": "^5.1.0"
   },
   "devDependencies": {

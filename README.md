@@ -11,11 +11,12 @@ into a grounded review draft with a citation on every claim.
 
 The name is the job: separate the grain from the chaff, and show your working.
 
-**Status:** v1.1.0. The CLI implements `init`, `brief`, `search`, `screen`,
+**Status:** v1.2.0. The CLI implements `init`, `brief`, `search`, `screen`,
 `extract`, `export`, `stance`, `review`, `argue`, `counter`, `queue`, `verify`,
 `replay`, `rerun` and `doctor`; template or local-model writers, support triage,
 citeproc styles, citation chasing, custom CSL files, full payload replay, a
-local web UI and a desktop shell are available. Installers and notarization are
+local web UI with a Search tab, optional grey-literature web search, and a
+desktop shell are available. Installers and notarization are
 wired for CI. v1 targets structured narrative and scoping reviews, not
 systematic reviews. See
 [SPEC.md](SPEC.md) and [docs/reviews](docs/reviews/README.md).

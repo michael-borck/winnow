@@ -116,7 +116,7 @@ export default function App() {
           ))}
         </nav>
 
-        <footer className="footer">v1.0.0 · local</footer>
+        <footer className="footer">v1.2.0 · local</footer>
       </aside>
 
       <div className="main" id="main" tabIndex={-1}>
@@ -257,7 +257,7 @@ function AboutTab() {
         </li>
       </ul>
 
-      <p className="small muted">Winnow v1.0.0 · MIT licensed</p>
+      <p className="small muted">Winnow v1.2.0 · MIT licensed</p>
     </div>
   );
 }
