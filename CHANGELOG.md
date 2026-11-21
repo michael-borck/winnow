@@ -5,6 +5,25 @@ Changelog, and the project uses semantic versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Optional grey-literature web search through Brave, Serper or SearXNG, with
+  automatic fallback, a 10-minute cache, and per-provider pacing/backoff.
+- CLI `--web` (or `--provider web`) plus `--brave-key`, `--serper-key`,
+  `--searxng-url` and `--fallback-order`; environment equivalents are
+  supported.
+- A Search tab in the desktop/web UI with topic filters, a grey-literature
+  toggle, session-only provider keys, and usage/cost guidance.
+- `winnow doctor` reports `provider:web` and the search hosts Winnow may
+  contact.
+- `POST /api/search` saves a run from the desktop/web UI.
+
+### Note
+
+Web results are grey literature: no DOI, `not_indexed_expected`, and
+`not_citable` until attested. They are for discovery and screening, not direct
+citation.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added

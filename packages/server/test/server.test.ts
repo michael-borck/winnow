@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createServer, type AddressInfo } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -239,6 +240,76 @@ describe('server trust boundary', () => {
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain('consent');
+  });
+
+  it('runs a grey-literature search and saves the web source', async () => {
+    const fakeSearxng = createServer((_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          results: [
+            {
+              title: 'Grey literature guide',
+              url: 'https://example.org/grey-guide',
+              content: 'A practical guide.',
+            },
+          ],
+        }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      fakeSearxng.listen(0, '127.0.0.1', () => resolve()),
+    );
+
+    try {
+      const port = (fakeSearxng.address() as AddressInfo).port;
+      const response = await fetch(`${base}/api/search`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-winnow-token': token,
+        },
+        body: JSON.stringify({
+          topic: 'grey literature',
+          limit: 5,
+          providers: ['web'],
+          greyLiterature: true,
+          searxngUrl: `http://127.0.0.1:${port}`,
+          checkLinks: false,
+        }),
+      });
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as {
+        runId: string;
+        selectedCount: number;
+      };
+      expect(result.selectedCount).toBeGreaterThan(0);
+
+      const sourcesResponse = await fetch(
+        `${base}/api/sources?run=${encodeURIComponent(result.runId)}`,
+        { headers: { 'x-winnow-token': token } },
+      );
+      expect(sourcesResponse.status).toBe(200);
+      const sources = (await sourcesResponse.json()) as {
+        sources: Array<{
+          title: string;
+          type: string | null;
+          sourceProvider: string | null;
+          citability: string;
+        }>;
+      };
+      const web = sources.sources.find(
+        (source) => source.title === 'Grey literature guide',
+      );
+      expect(web).toBeTruthy();
+      expect(web?.type).toBe('website');
+      expect(web?.sourceProvider).toBe('web');
+      expect(web?.citability).toBe('not_citable');
+    } finally {
+      await new Promise<void>((resolve) =>
+        fakeSearxng.close(() => resolve()),
+      );
+    }
   });
 
   it('accepts a remote model endpoint with consent and reaches the evidence check', async () => {

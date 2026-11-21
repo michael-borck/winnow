@@ -77,6 +77,25 @@ describe('runDoctor', () => {
     expect(report.hosts).toContain('localhost:11434');
   });
 
+  it('reports configured web search providers and hosts', async () => {
+    const report = await runDoctor({
+      nodeVersion: '24.1.0',
+      env: {
+        BRAVE_API_KEY: 'brave-key',
+        SEARXNG_URL: 'https://searx.example.org',
+      },
+      fetchImpl: healthyFetch(),
+      baseUrl: 'http://localhost:11434/v1',
+    });
+
+    const web = check(report, 'provider:web');
+    expect(web.status).toBe('ok');
+    expect(web.detail).toContain('brave');
+    expect(web.detail).toContain('searxng');
+    expect(report.hosts).toContain('api.search.brave.com');
+    expect(report.hosts).toContain('searx.example.org');
+  });
+
   it('reports provider, network and model failures', async () => {
     const report = await runDoctor({
       nodeVersion: '24.1.0',

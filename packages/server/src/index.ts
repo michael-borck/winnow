@@ -25,6 +25,15 @@ import {
   ModelError,
   normaliseStyle,
   openProject,
+  searchLiterature,
+  createRun,
+  savePayload,
+  saveRunSources,
+  finishRun,
+  recordAuditEvent,
+  hashSnapshot,
+  snapshotForRankedSources,
+  type RetrievalPayload,
   recordExtractionValue,
   recordScreeningDecision,
   registerCslStyle,
@@ -137,6 +146,185 @@ app.get('/api/session', (_req, res) => {
   res.json({ token: sessionToken, project: project.meta.name });
 });
 
+interface SearchBody {
+  topic?: string;
+  limit?: number;
+  since?: number;
+  until?: number;
+  type?: string;
+  types?: string[];
+  openAccessOnly?: boolean;
+  providers?: string[];
+  greyLiterature?: boolean;
+  checkLinks?: boolean;
+  mailto?: string;
+  braveApiKey?: string;
+  serperApiKey?: string;
+  searxngUrl?: string;
+  searchFallbackEnabled?: boolean;
+  searchFallbackOrder?: string;
+}
+
+async function savePayloads(
+  db: Parameters<typeof savePayload>[0],
+  root: string,
+  runId: string,
+  payloads: RetrievalPayload[],
+): Promise<Array<{ provider: string; reason: string; message: string }>> {
+  const failures: Array<{
+    provider: string;
+    reason: string;
+    message: string;
+  }> = [];
+  for (const payload of payloads) {
+    try {
+      await savePayload(db, root, runId, payload);
+    } catch (error) {
+      failures.push({
+        provider: payload.provider,
+        reason: 'unknown',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return failures;
+}
+
+function optionalYear(value: unknown): number | undefined {
+  const year = Number(value);
+  return Number.isFinite(year) && year > 0 ? Math.trunc(year) : undefined;
+}
+
+app.post('/api/search', async (req, res) => {
+  const body = req.body as SearchBody;
+  const topic = body.topic?.trim();
+  if (!topic) {
+    res.status(400).json({ error: 'topic is required' });
+    return;
+  }
+
+  const providers = Array.isArray(body.providers) && body.providers.length
+    ? body.providers.map((provider) => String(provider).toLowerCase())
+    : ['openalex', 'crossref'];
+  if (body.greyLiterature && !providers.includes('web')) providers.push('web');
+
+  const braveApiKey =
+    body.braveApiKey?.trim() || process.env.BRAVE_API_KEY || undefined;
+  const serperApiKey =
+    body.serperApiKey?.trim() || process.env.SERPER_API_KEY || undefined;
+  const searxngUrl =
+    body.searxngUrl?.trim() || process.env.SEARXNG_URL || undefined;
+  const searchFallbackEnabled =
+    typeof body.searchFallbackEnabled === 'boolean'
+      ? body.searchFallbackEnabled
+      : process.env.SEARCH_FALLBACK_ENABLED !== '0';
+  const searchFallbackOrder =
+    body.searchFallbackOrder?.trim() || process.env.SEARCH_FALLBACK_ORDER;
+  const limit = Math.min(
+    Math.max(Math.trunc(Number(body.limit ?? 40)) || 40, 1),
+    100,
+  );
+  const since = optionalYear(body.since);
+  const until = optionalYear(body.until);
+  const types = Array.isArray(body.types)
+    ? body.types.filter((type): type is string => typeof type === 'string')
+    : undefined;
+  const mailto = body.mailto?.trim() || process.env.WINNOW_MAILTO;
+  const webConfigured = Boolean(braveApiKey || serperApiKey || searxngUrl);
+
+  try {
+    const result = await searchLiterature(topic, {
+      limit,
+      since,
+      until,
+      type: body.type,
+      types,
+      openAccessOnly: body.openAccessOnly === true,
+      providers,
+      mailto,
+      openAlexApiKey: process.env.OPENALEX_API_KEY,
+      checkLinks: body.checkLinks === true,
+      braveApiKey,
+      serperApiKey,
+      searxngUrl,
+      searchFallbackEnabled,
+      searchFallbackOrder,
+    });
+
+    createRun(project.db, {
+      id: result.runId,
+      query: result.query,
+      config: {
+        limit,
+        since: since ?? null,
+        until: until ?? null,
+        type: body.type ?? null,
+        types: types ?? null,
+        openAccessOnly: body.openAccessOnly === true,
+        providers: providers.join(','),
+        greyLiterature: providers.includes('web'),
+        webConfigured,
+        searchFallbackEnabled,
+        searchFallbackOrder: searchFallbackOrder ?? null,
+        checkLinks: body.checkLinks === true,
+        mailto: mailto ?? null,
+        openAlexKeyConfigured: Boolean(process.env.OPENALEX_API_KEY),
+      },
+    });
+
+    const payloadFailures = await savePayloads(
+      project.db,
+      project.root,
+      result.runId,
+      result.payloads,
+    );
+    saveRunSources(project.db, result.runId, result.query, result.sources);
+    const snapshot = snapshotForRankedSources(
+      result.runId,
+      result.query,
+      result.sources,
+    );
+    const failed = result.failures.length > 0 || payloadFailures.length > 0;
+    finishRun(project.db, result.runId, {
+      outputSha256: hashSnapshot(snapshot),
+      stages: {
+        retrieve: failed ? 'partial' : 'ok',
+        verify: 'ok',
+        rank: 'ok',
+      },
+      componentHealth: {
+        failed,
+        failures: [...result.failures, ...payloadFailures],
+      },
+    });
+    recordAuditEvent(project.db, {
+      runId: result.runId,
+      actor: 'user',
+      action: 'search',
+      payload: {
+        selected: result.selectedCount,
+        citable: result.citableCount,
+        greyLiterature: providers.includes('web'),
+        webConfigured,
+        failures: result.failures,
+        payloadFailures: payloadFailures.length,
+      },
+    });
+
+    res.json({
+      runId: result.runId,
+      selectedCount: result.selectedCount,
+      citableCount: result.citableCount,
+      failures: result.failures,
+      payloadFailures,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'search failed',
+    });
+  }
+});
+
 app.get('/api/state', (req, res) => {
   const runId = typeof req.query.run === 'string' ? req.query.run : undefined;
   const runs = listRuns(project.db, 30);
@@ -211,6 +399,13 @@ app.get('/api/sources', (req, res) => {
       variantOf: item.source.variantOf ?? null,
       isVersionOfRecord: item.source.isVersionOfRecord ?? true,
       alternateDois: item.source.alternateDois ?? [],
+      // loadRunSources normalises the stored provider to "stored"; website
+      // sources from the grey-literature provider are re-labelled here.
+      sourceProvider:
+        item.source.type === 'website'
+          ? 'web'
+          : item.source.sourceProvider ?? null,
+      type: item.source.type ?? null,
     })),
   });
 });

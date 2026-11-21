@@ -89,6 +89,38 @@ Paid indexes such as Scopus and Web of Science are out of scope: they require
 institutional authentication and licence agreements. Winnow is built around
 open indexes.
 
+### Grey literature (optional web search)
+
+Winnow can add web results from Brave, Serper or SearXNG for grey literature.
+It is off by default.
+
+```bash
+winnow search "feedback literacy" --web
+# or: --provider openalex,crossref,web
+```
+
+Provider keys come from flags or the environment:
+
+- `--brave-key` or `BRAVE_API_KEY`
+- `--serper-key` or `SERPER_API_KEY`
+- `--searxng-url` or `SEARXNG_URL`
+- `SEARCH_FALLBACK_ORDER` changes the order (default `brave,serper,searxng`)
+- `SEARCH_FALLBACK_ENABLED=0` keeps only the first configured provider
+
+The desktop and local web UI have a **Search** tab with the same controls. Keys
+typed there stay in the browser tab and are sent only to the local server for
+that search. The CLI reads environment variables.
+
+Identical searches are cached for 10 minutes. Web results are `type: website`
+with no DOI, so they stay `not_indexed_expected` and `not_citable` until
+attested. They are useful for discovery and screening, not for citation.
+`winnow doctor` reports `provider:web` and the hosts Winnow may contact.
+
+Brave and Serper are paid services with free allowances. Brave currently gives
+$5 in free credit each month, then charges $5 per 1,000 requests. Serper gives
+2,500 free queries, then prepaid credits. SearXNG is free to self-host but its
+upstream engines can rate-limit.
+
 ## Briefs
 
 A brief is YAML frontmatter plus optional context. Machine filters are kept

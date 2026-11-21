@@ -74,6 +74,7 @@ export async function runDoctor(
     project,
     networkCheck(providers, offline),
     ...providers,
+    checkWebProviders(env),
     await checkModel({
       baseUrl,
       model: options.model,
@@ -87,7 +88,7 @@ export async function runDoctor(
   return {
     ok: !checks.some((check) => check.status === 'fail'),
     checks,
-    hosts: hostsFor(baseUrl, offline),
+    hosts: hostsFor(baseUrl, offline, env),
   };
 }
 
@@ -349,7 +350,38 @@ function networkCheck(
   return { name: 'network', status: 'ok', detail: 'provider APIs reachable' };
 }
 
-function hostsFor(baseUrl: string, offline: boolean): string[] {
+function checkWebProviders(
+  env: Record<string, string | undefined>,
+): DoctorCheck {
+  const configured = [
+    env.BRAVE_API_KEY?.trim() ? 'brave' : null,
+    env.SERPER_API_KEY?.trim() ? 'serper' : null,
+    env.SEARXNG_URL?.trim() ? 'searxng' : null,
+  ].filter((value): value is string => Boolean(value));
+
+  if (!configured.length) {
+    return {
+      name: 'provider:web',
+      status: 'skipped',
+      detail: 'not configured (grey literature off)',
+    };
+  }
+
+  const order = env.SEARCH_FALLBACK_ORDER?.trim() || 'brave,serper,searxng';
+  return {
+    name: 'provider:web',
+    status: 'ok',
+    detail: `${configured.join(', ')}; order ${
+      env.SEARCH_FALLBACK_ENABLED === '0' ? 'primary only' : order
+    }`,
+  };
+}
+
+function hostsFor(
+  baseUrl: string,
+  offline: boolean,
+  env: Record<string, string | undefined>,
+): string[] {
   if (offline) return [];
   const hosts = new Set([
     'api.openalex.org',
@@ -360,6 +392,15 @@ function hostsFor(baseUrl: string, offline: boolean): string[] {
     hosts.add(new URL(baseUrl).host);
   } catch {
     // The model endpoint is reported by the model check.
+  }
+  if (env.BRAVE_API_KEY?.trim()) hosts.add('api.search.brave.com');
+  if (env.SERPER_API_KEY?.trim()) hosts.add('google.serper.dev');
+  if (env.SEARXNG_URL?.trim()) {
+    try {
+      hosts.add(new URL(env.SEARXNG_URL).host);
+    } catch {
+      // A malformed URL is reported by the search provider at run time.
+    }
   }
   return [...hosts];
 }

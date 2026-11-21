@@ -48,6 +48,22 @@ export interface SourceItem {
   variantOf?: string | null;
   isVersionOfRecord?: boolean;
   alternateDois?: string[];
+  sourceProvider?: string | null;
+  type?: string | null;
+}
+
+export interface SearchFailure {
+  provider: string;
+  reason: string;
+  message: string;
+}
+
+export interface SearchResponse {
+  runId: string;
+  selectedCount: number;
+  citableCount: number;
+  failures: SearchFailure[];
+  payloadFailures: SearchFailure[];
 }
 
 export interface SourcesResponse {

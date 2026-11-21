@@ -304,6 +304,58 @@ input {
     padding-bottom: 40px;
   }
 
+  /* ---------- search tab ---------- */
+  .search-form {
+    max-width: 860px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .search-form form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .search-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .search-form .row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .search-form .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .search-form .actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .search-settings {
+    display: grid;
+    gap: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--bg-soft);
+  }
+
+  .search-settings summary {
+    cursor: pointer;
+    color: var(--gold-2);
+    font-weight: 600;
+  }
+
   .about {
     max-width: 78ch;
     padding-top: 20px;

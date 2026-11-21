@@ -186,6 +186,12 @@ export interface SearchOptions {
   mailto?: string;
   openAlexApiKey?: string;
   checkLinks?: boolean;
+  /** Optional grey-literature web search (Brave, Serper or SearXNG). */
+  braveApiKey?: string;
+  serperApiKey?: string;
+  searxngUrl?: string;
+  searchFallbackEnabled?: boolean;
+  searchFallbackOrder?: string;
 }
 
 export interface SearchResult {

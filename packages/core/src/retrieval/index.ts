@@ -1,6 +1,7 @@
 import type { ProviderFailure, RetrievalResult } from '../types.js';
 import { retrieveCrossref } from './crossref.js';
 import { retrieveOpenAlex } from './openalex.js';
+import { retrieveWeb } from './web.js';
 
 export interface RetrieveOptions {
   limit: number;
@@ -9,6 +10,11 @@ export interface RetrieveOptions {
   mailto?: string;
   openAlexApiKey?: string;
   providers?: string[];
+  braveApiKey?: string;
+  serperApiKey?: string;
+  searxngUrl?: string;
+  searchFallbackEnabled?: boolean;
+  searchFallbackOrder?: string;
 }
 
 export async function retrieve(
@@ -25,6 +31,9 @@ export async function retrieve(
     }
     if (provider === 'crossref') {
       return retrieveCrossref(topic, options);
+    }
+    if (provider === 'web') {
+      return retrieveWeb(topic, options);
     }
     throw Object.assign(new Error(`Unknown provider: ${provider}`), {
       provider,

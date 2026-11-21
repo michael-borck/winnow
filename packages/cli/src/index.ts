@@ -151,6 +151,11 @@ interface SearchCliOptions {
   checkLinks?: boolean;
   mailto?: string;
   openAlexKey?: string;
+  web?: boolean;
+  braveKey?: string;
+  serperKey?: string;
+  searxngUrl?: string;
+  fallbackOrder?: string;
 }
 
 interface VerifyCliOptions {
@@ -244,6 +249,11 @@ interface CounterCliOptions {
   mailto?: string;
   openAlexKey?: string;
   s2Key?: string;
+  web?: boolean;
+  braveKey?: string;
+  serperKey?: string;
+  searxngUrl?: string;
+  fallbackOrder?: string;
 }
 
 interface QueueCliOptions {
@@ -366,6 +376,17 @@ program
   .option('--check-links', 'probe landing pages (slow; informational only)')
   .option('--mailto <email>', 'polite-pool email for scholarly APIs')
   .option('--openalex-key <key>', 'OpenAlex API key (or set OPENALEX_API_KEY)')
+  .option(
+    '--web',
+    'include grey-literature web results (Brave, Serper or SearXNG)',
+  )
+  .option('--brave-key <key>', 'Brave API key (or set BRAVE_API_KEY)')
+  .option('--serper-key <key>', 'Serper API key (or set SERPER_API_KEY)')
+  .option('--searxng-url <url>', 'SearXNG URL (or set SEARXNG_URL)')
+  .option(
+    '--fallback-order <list>',
+    'web provider order (or set SEARCH_FALLBACK_ORDER)',
+  )
   .action(async (topicArg: string | undefined, options: SearchCliOptions) => {
     let parsedBrief: ParsedBrief | undefined;
     if (options.brief) {
@@ -432,6 +453,28 @@ program
       .split(',')
       .map((provider) => provider.trim())
       .filter(Boolean);
+    if (options.web && !providers.includes('web')) providers.push('web');
+
+    const braveApiKey =
+      options.braveKey?.trim() || process.env.BRAVE_API_KEY;
+    const serperApiKey =
+      options.serperKey?.trim() || process.env.SERPER_API_KEY;
+    const searxngUrl =
+      options.searxngUrl?.trim() || process.env.SEARXNG_URL;
+    const searchFallbackEnabled = process.env.SEARCH_FALLBACK_ENABLED !== '0';
+    const searchFallbackOrder =
+      options.fallbackOrder?.trim() || process.env.SEARCH_FALLBACK_ORDER;
+
+    if (
+      providers.includes('web') &&
+      !braveApiKey &&
+      !serperApiKey &&
+      !searxngUrl
+    ) {
+      process.stderr.write(
+        'winnow: web search needs BRAVE_API_KEY, SERPER_API_KEY or SEARXNG_URL; web results will be unavailable\n',
+      );
+    }
 
     const result = await searchLiterature(topic, {
       limit,
@@ -444,6 +487,11 @@ program
       mailto,
       openAlexApiKey: openAlexKey,
       checkLinks: options.checkLinks === true,
+      braveApiKey,
+      serperApiKey,
+      searxngUrl,
+      searchFallbackEnabled,
+      searchFallbackOrder,
     });
 
     const snapshot = snapshotForRankedSources(result.runId, result.query, result.sources);
@@ -472,7 +520,10 @@ program
             type: options.type,
             types,
             openAccessOnly,
-            providers: options.provider,
+            providers: providers.join(','),
+            webConfigured: Boolean(braveApiKey || serperApiKey || searxngUrl),
+            searchFallbackEnabled,
+            searchFallbackOrder: searchFallbackOrder ?? null,
             checkLinks: options.checkLinks === true,
             mailto: mailto ?? null,
             openAlexKeyConfigured: Boolean(openAlexKey),
@@ -535,6 +586,11 @@ program
         providers,
         mailto: options.mailto,
         counterOf: result.runId,
+        braveApiKey,
+        serperApiKey,
+        searxngUrl,
+        searchFallbackEnabled,
+        searchFallbackOrder,
       });
       process.stderr.write(
         `counter run ${counter.runId} ${counter.saved ? 'saved' : 'not saved'} ` +
@@ -1303,6 +1359,14 @@ program
   .option('--mailto <email>', 'polite-pool email for scholarly APIs')
   .option('--openalex-key <key>', 'OpenAlex API key (or set OPENALEX_API_KEY)')
   .option('--s2-key <key>', 'Semantic Scholar API key (or set SEMANTIC_SCHOLAR_API_KEY)')
+  .option('--web', 'include grey-literature web results')
+  .option('--brave-key <key>', 'Brave API key (or set BRAVE_API_KEY)')
+  .option('--serper-key <key>', 'Serper API key (or set SERPER_API_KEY)')
+  .option('--searxng-url <url>', 'SearXNG URL (or set SEARXNG_URL)')
+  .option(
+    '--fallback-order <list>',
+    'web provider order (or set SEARCH_FALLBACK_ORDER)',
+  )
   .action(async (projectArg: string | undefined, options: CounterCliOptions) => {
     const format = parseFormat(options.format, ['table', 'json', 'csv']);
     const limit = parseLimit(options.limit);
@@ -1329,6 +1393,21 @@ program
         options.openAlexKey?.trim() || process.env.OPENALEX_API_KEY;
       const s2Key =
         options.s2Key?.trim() || process.env.SEMANTIC_SCHOLAR_API_KEY;
+      const providers = options.provider
+        .split(',')
+        .map((provider) => provider.trim())
+        .filter(Boolean);
+      if (options.web && !providers.includes('web')) providers.push('web');
+      const braveApiKey =
+        options.braveKey?.trim() || process.env.BRAVE_API_KEY;
+      const serperApiKey =
+        options.serperKey?.trim() || process.env.SERPER_API_KEY;
+      const searxngUrl =
+        options.searxngUrl?.trim() || process.env.SEARXNG_URL;
+      const searchFallbackEnabled =
+        process.env.SEARCH_FALLBACK_ENABLED !== '0';
+      const searchFallbackOrder =
+        options.fallbackOrder?.trim() || process.env.SEARCH_FALLBACK_ORDER;
 
       const result = options.of
         ? await runCitationChase(options.of, {
@@ -1342,13 +1421,15 @@ program
           })
         : await searchLiterature(counterQuery(topic), {
             limit,
-            providers: options.provider
-              .split(',')
-              .map((provider) => provider.trim())
-              .filter(Boolean),
+            providers,
             mailto,
             openAlexApiKey: openAlexKey,
             checkLinks: false,
+            braveApiKey,
+            serperApiKey,
+            searxngUrl,
+            searchFallbackEnabled,
+            searchFallbackOrder,
           });
 
       const snapshot = snapshotForRankedSources(
@@ -1366,7 +1447,10 @@ program
           topic,
           criticalTerms: options.of ? [] : CRITICAL_TERMS,
           limit,
-          providers: options.of ? null : options.provider,
+          providers: options.of ? null : providers.join(','),
+          webConfigured: Boolean(braveApiKey || serperApiKey || searxngUrl),
+          searchFallbackEnabled,
+          searchFallbackOrder: searchFallbackOrder ?? null,
           mailto: mailto ?? null,
           openAlexKeyConfigured: Boolean(openAlexKey),
           s2KeyConfigured: Boolean(s2Key),
@@ -1997,6 +2081,11 @@ async function runCounterPass(input: {
   providers: string[];
   mailto?: string;
   counterOf: string;
+  braveApiKey?: string;
+  serperApiKey?: string;
+  searxngUrl?: string;
+  searchFallbackEnabled?: boolean;
+  searchFallbackOrder?: string;
 }): Promise<{
   runId: string;
   selectedCount: number;
@@ -2009,6 +2098,11 @@ async function runCounterPass(input: {
     providers: input.providers,
     mailto: input.mailto,
     checkLinks: false,
+    braveApiKey: input.braveApiKey,
+    serperApiKey: input.serperApiKey,
+    searxngUrl: input.searxngUrl,
+    searchFallbackEnabled: input.searchFallbackEnabled,
+    searchFallbackOrder: input.searchFallbackOrder,
   });
 
   let saved = false;

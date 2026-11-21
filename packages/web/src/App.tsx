@@ -10,16 +10,23 @@ import {
   type HeldSentence,
   type QueueResponse,
   type ReviewResponse,
+  type SearchFailure,
+  type SearchResponse,
   type SourceItem,
   type SourcesResponse,
   type StateResponse,
 } from './api';
+import {
+  loadSearchSettings,
+  saveSearchSettings,
+  type SearchSettings,
+} from './lib/search-settings';
 
-type Tab = 'sources' | 'evidence' | 'drafts' | 'queue' | 'about';
+type Tab = 'search' | 'sources' | 'evidence' | 'drafts' | 'queue' | 'about';
 
 export default function App() {
   const [state, setState] = useState<StateResponse | null>(null);
-  const [tab, setTab] = useState<Tab>('sources');
+  const [tab, setTab] = useState<Tab>('search');
   const [runId, setRunId] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +39,7 @@ export default function App() {
         if (!cancelled) {
           setState(data);
           setRunId(data.run?.id ?? '');
+          setTab(data.run ? 'sources' : 'search');
         }
       } catch (err) {
         if (!cancelled) setError(errorText(err));
@@ -96,7 +104,7 @@ export default function App() {
         </div>
 
         <nav className="nav" aria-label="Sections">
-          {(['sources', 'evidence', 'drafts', 'queue', 'about'] as const).map((item) => (
+          {(['search', 'sources', 'evidence', 'drafts', 'queue', 'about'] as const).map((item) => (
             <button
               key={item}
               className={tab === item ? 'nav-item active' : 'nav-item'}
@@ -132,7 +140,7 @@ export default function App() {
           </div>
         </header>
 
-        {state.run && tab !== 'about' ? (
+        {state.run && tab !== 'about' && tab !== 'search' ? (
           <section className="summary">
             <div className="chips">
               <Chip label="Included" value={state.counts?.screening.included ?? 0} />
@@ -145,10 +153,10 @@ export default function App() {
           </section>
         ) : null}
 
-        {!state.run && tab !== 'about' ? (
+        {!state.run && tab !== 'about' && tab !== 'search' ? (
           <section className="empty">
             <h2>No completed run yet</h2>
-            <p>Run `winnow search "topic"` in this project, then reload.</p>
+            <p>Use the Search tab, or run `winnow search "topic"` in this project.</p>
           </section>
         ) : null}
 
@@ -158,7 +166,16 @@ export default function App() {
           </p>
         ) : null}
 
-        {state.run || tab === 'about' ? (
+        {tab === 'search' ? (
+          <main className="panel">
+            <SearchTab
+              onSearch={(runId) => {
+                setTab('sources');
+                void refresh(runId);
+              }}
+            />
+          </main>
+        ) : state.run || tab === 'about' ? (
           <main className="panel">
             {tab === 'about' ? (
               <AboutTab />
@@ -242,6 +259,234 @@ function AboutTab() {
 
       <p className="small muted">Winnow v1.0.0 · MIT licensed</p>
     </div>
+  );
+}
+
+function SearchTab({
+  onSearch,
+}: {
+  onSearch: (runId: string) => void;
+}) {
+  const [topic, setTopic] = useState('');
+  const [limit, setLimit] = useState('40');
+  const [since, setSince] = useState('');
+  const [until, setUntil] = useState('');
+  const [greyLiterature, setGreyLiterature] = useState(false);
+  const [checkLinks, setCheckLinks] = useState(false);
+  const [settings, setSettings] = useState<SearchSettings>(loadSearchSettings);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [failures, setFailures] = useState<SearchFailure[]>([]);
+
+  useEffect(() => {
+    saveSearchSettings(settings);
+  }, [settings]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = topic.trim();
+    if (!trimmed) {
+      setError('Enter a topic to search for.');
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setFailures([]);
+    try {
+      const response = await apiPost<SearchResponse>('/api/search', {
+        topic: trimmed,
+        limit: Number(limit) || 40,
+        since: since ? Number(since) : undefined,
+        until: until ? Number(until) : undefined,
+        greyLiterature,
+        checkLinks,
+        braveApiKey: settings.braveApiKey || undefined,
+        serperApiKey: settings.serperApiKey || undefined,
+        searxngUrl: settings.searxngUrl || undefined,
+        searchFallbackEnabled: settings.fallbackEnabled,
+        searchFallbackOrder: settings.fallbackOrder,
+      });
+      setFailures([...(response.failures ?? []), ...(response.payloadFailures ?? [])]);
+      onSearch(response.runId);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="search-form">
+      <div>
+        <h2>New search</h2>
+        <p className="muted">
+          OpenAlex and Crossref run by default. Add grey literature to include
+          web results from Brave, Serper, or SearXNG.
+        </p>
+      </div>
+
+      <form onSubmit={(event) => void submit(event)}>
+        <label>
+          Topic or question
+          <input
+            value={topic}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => setTopic(event.target.value)}
+            placeholder="e.g. feedback literacy in higher education"
+            required
+          />
+        </label>
+
+        <div className="row">
+          <label>
+            Limit
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={limit}
+              onChange={(event) => setLimit(event.target.value)}
+            />
+          </label>
+          <label>
+            Since
+            <input
+              type="number"
+              min="1900"
+              max="2100"
+              value={since}
+              onChange={(event) => setSince(event.target.value)}
+            />
+          </label>
+          <label>
+            Until
+            <input
+              type="number"
+              min="1900"
+              max="2100"
+              value={until}
+              onChange={(event) => setUntil(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={greyLiterature}
+            onChange={(event) => setGreyLiterature(event.target.checked)}
+          />{' '}
+          Include grey literature (web search)
+        </label>
+        {greyLiterature ? (
+          <p className="muted">
+            Web results are not database-attested and stay not citable until
+            attested. They are useful for discovery and screening.
+          </p>
+        ) : null}
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={checkLinks}
+            onChange={(event) => setCheckLinks(event.target.checked)}
+          />{' '}
+          Check landing-page links (slower)
+        </label>
+
+        <details className="search-settings">
+          <summary>Search provider settings</summary>
+          <p className="muted">
+            Keys stay in this tab and are sent only to the local server for this
+            search. The CLI reads BRAVE_API_KEY, SERPER_API_KEY and SEARXNG_URL
+            from the environment.
+          </p>
+          <div className="row">
+            <label>
+              Brave API key
+              <input
+                type="password"
+                autoComplete="off"
+                value={settings.braveApiKey}
+                onChange={(event) =>
+                  setSettings({ ...settings, braveApiKey: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Serper API key
+              <input
+                type="password"
+                autoComplete="off"
+                value={settings.serperApiKey}
+                onChange={(event) =>
+                  setSettings({ ...settings, serperApiKey: event.target.value })
+                }
+              />
+            </label>
+          </div>
+          <label>
+            SearXNG URL
+            <input
+              value={settings.searxngUrl}
+              onChange={(event) =>
+                setSettings({ ...settings, searxngUrl: event.target.value })
+              }
+              placeholder="http://localhost:8080"
+            />
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.fallbackEnabled}
+              onChange={(event) =>
+                setSettings({ ...settings, fallbackEnabled: event.target.checked })
+              }
+            />{' '}
+            Fall back to the next configured provider
+          </label>
+          <label>
+            Fallback order
+            <input
+              value={settings.fallbackOrder}
+              disabled={!settings.fallbackEnabled}
+              onChange={(event) =>
+                setSettings({ ...settings, fallbackOrder: event.target.value })
+              }
+              placeholder="brave,serper,searxng"
+            />
+          </label>
+          <p className="muted">
+            Brave: $5 free credit each month, then $5 per 1,000 requests. Serper:
+            2,500 free queries, then prepaid credits. SearXNG is free to
+            self-host but can rate-limit. Queries leave this device and go to the
+            selected provider.
+          </p>
+        </details>
+
+        <div className="actions">
+          <button type="submit" disabled={busy}>
+            {busy ? 'Searching…' : 'Run search'}
+          </button>
+          {error ? (
+            <span className="error" role="alert">
+              {error}
+            </span>
+          ) : null}
+        </div>
+      </form>
+
+      {failures.length ? (
+        <div className="card">
+          <h3>Partial search</h3>
+          {failures.map((failure) => (
+            <p className="muted" key={`${failure.provider}-${failure.message}`}>
+              {failure.provider}: {failure.message}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -342,6 +587,9 @@ function SourceCard({
           </p>
         </div>
         <div className="badges">
+          {source.sourceProvider === 'web' ? (
+            <span className="badge">grey literature</span>
+          ) : null}
           <span className={`badge cit-${source.citability}`}>{source.citability}</span>
           <span className="badge">{source.decision ?? 'undecided'}</span>
         </div>
@@ -350,6 +598,10 @@ function SourceCard({
       {source.doi ? (
         <a className="doi" href={`https://doi.org/${source.doi}`} target="_blank" rel="noreferrer">
           doi:{source.doi}
+        </a>
+      ) : source.url ? (
+        <a className="doi" href={source.url} target="_blank" rel="noreferrer">
+          {source.url}
         </a>
       ) : null}
 
@@ -973,7 +1225,9 @@ function Chip({ label, value }: { label: string; value: number }) {
 }
 
 function label(tab: Tab): string {
-  return tab === 'sources'
+  return tab === 'search'
+    ? 'Search'
+    : tab === 'sources'
     ? 'Sources'
     : tab === 'evidence'
       ? 'Evidence'
